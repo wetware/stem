@@ -2,19 +2,19 @@
 pragma solidity ^0.8.24;
 
 /// @title Stem
-/// @notice The on-chain bootstrap facet of Cortex.
+/// @notice The on-chain bootstrap facet of Stem.
 ///
-/// Stem anchors the authoritative "head" pointer for Cortex.
-/// Off-chain systems (Cortex runtime) watch Stem events to learn when
+/// Stem anchors the authoritative "head" pointer for Stem.
+/// Off-chain systems (Stem runtime) watch Stem events to learn when
 /// the global configuration root has advanced.
 ///
 /// Semantics:
-/// - There is exactly one Stem per Cortex.
+/// - There is exactly one Stem per deployment.
 /// - The head is advanced monotonically via `seq`.
 /// - Every advance emits an event suitable for deterministic replay.
 /// - Authority to advance the head is gated (owner for now).
 contract Stem {
-    /// @notice Emitted whenever the Cortex head advances.
+    /// @notice Emitted whenever the Stem head advances.
     /// @param seq Monotonic sequence number (epoch index)
     /// @param writer Caller who advanced the head
     /// @param head   New head pointer (e.g. ipfs://..., ipns://...)
@@ -50,7 +50,7 @@ contract Stem {
         return (seq, _head);
     }
 
-    /// @notice Advance the Cortex head.
+    /// @notice Advance the Stem head.
     /// Emits a HeadUpdated event that off-chain watchers consume.
     function setHead(string calldata newHead) external {
         if (msg.sender != owner) revert NotOwner();

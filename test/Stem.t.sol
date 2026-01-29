@@ -2,9 +2,9 @@
 pragma solidity ^0.8.13;
 
 import { Test } from "forge-std/Test.sol";
-import { Stem } from "../src/Cortex.sol";
+import { Stem } from "../src/Stem.sol";
 
-contract CortexTest is Test {
+contract StemTest is Test {
     Stem public stem;
     address public owner;
     address public user;
