@@ -27,14 +27,28 @@ fn build_logs_filter(
     let mut filter = json!({
         "address": format!("0x{}", hex::encode(address)),
     });
+    // Single-topic filter: [topic0] only (some nodes reject [topic0, null, null, null]).
     if let Some(t0) = topic0 {
-        filter["topics"] = json!([
-            format!("0x{}", hex::encode(t0)),
-            null,
-            null,
-            null
-        ]);
+        filter["topics"] = json!([format!("0x{}", hex::encode(t0))]);
     }
+    if let Some(from) = from_block {
+        filter["fromBlock"] = Value::String(format!("0x{:x}", from));
+    }
+    if let Some(to) = to_block {
+        filter["toBlock"] = Value::String(format!("0x{:x}", to));
+    }
+    filter
+}
+
+/// Build address-only filter (no topics) for fallback when node rejects topic filter.
+fn build_logs_filter_address_only(
+    address: &[u8; 20],
+    from_block: Option<u64>,
+    to_block: Option<u64>,
+) -> Value {
+    let mut filter = json!({
+        "address": format!("0x{}", hex::encode(address)),
+    });
     if let Some(from) = from_block {
         filter["fromBlock"] = Value::String(format!("0x{:x}", from));
     }
@@ -318,6 +332,22 @@ async fn run_once(
     Ok(())
 }
 
+fn log_matches_head_updated(log: &Value) -> bool {
+    let topics = match log.get("topics").and_then(|t| t.as_array()) {
+        Some(t) if !t.is_empty() => t,
+        _ => return false,
+    };
+    let t0 = match topics[0].as_str() {
+        Some(s) => s,
+        None => return false,
+    };
+    let bytes = match hex::decode(t0.strip_prefix("0x").unwrap_or(t0)) {
+        Ok(b) if b.len() >= 4 => b,
+        _ => return false,
+    };
+    bytes[..4] == HEAD_UPDATED_TOPIC0
+}
+
 async fn backfill(
     client: &reqwest::Client,
     http_url: &str,
@@ -337,11 +367,49 @@ async fn backfill(
             Some(from),
             Some(to),
         );
-        let logs = eth_get_logs(client, http_url, filter).await.unwrap_or_default();
+        let logs = match eth_get_logs(client, http_url, filter).await {
+            Ok(l) => l,
+            Err(e) => {
+                tracing::debug!(reason = %e, "eth_getLogs with topic filter failed, trying address-only");
+                let fallback = build_logs_filter_address_only(
+                    contract_address,
+                    Some(from),
+                    Some(to),
+                );
+                let raw = eth_get_logs(client, http_url, fallback).await?;
+                raw.into_iter()
+                    .filter(|log| log_matches_head_updated(log))
+                    .collect::<Vec<_>>()
+            }
+        };
+        // If topic filter returned empty, try address-only (some nodes ignore topic filter and return []).
+        let logs = if logs.is_empty() {
+            let fallback = build_logs_filter_address_only(
+                contract_address,
+                Some(from),
+                Some(to),
+            );
+            match eth_get_logs(client, http_url, fallback).await {
+                Ok(raw) => raw
+                    .into_iter()
+                    .filter(|log| log_matches_head_updated(log))
+                    .collect::<Vec<_>>(),
+                Err(_) => logs,
+            }
+        } else {
+            logs
+        };
         let mut observed: Vec<HeadUpdatedObserved> = logs
             .iter()
-            .filter_map(|log| decode_log_to_observed(log).ok())
+            .filter_map(|log| {
+                decode_log_to_observed(log).map_err(|e| tracing::debug!(%e, "decode log skipped")).ok()
+            })
             .collect();
+        if !logs.is_empty() && observed.is_empty() {
+            tracing::warn!(raw_count = logs.len(), from, to, "backfill: logs received but none decoded");
+        } else if !observed.is_empty() {
+            tracing::debug!(count = observed.len(), from, to, "backfill: decoded events");
+        }
         observed.sort_by_key(|o| (o.block_number, o.log_index));
         for o in observed {
             let _ = event_tx.send(o.clone());

@@ -8,10 +8,16 @@ use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::time::timeout;
+use tracing_subscriber::EnvFilter;
 
 #[tokio::test]
 #[ignore] // requires anvil, forge, cast in PATH; run with: cargo test -p stem --test integration -- --ignored
 async fn test_indexer_against_anvil() {
+    let _ = tracing_subscriber::fmt()
+        .with_env_filter(EnvFilter::from_default_env().add_directive("stem=debug".parse().unwrap()))
+        .with_test_writer()
+        .try_init();
+
     let repo_root = Path::new(env!("CARGO_MANIFEST_DIR")).ancestors().nth(2).unwrap();
     let (mut anvil_process, rpc_url) = spawn_anvil().await.expect("spawn anvil");
     let contract_addr = deploy_stem(repo_root, &rpc_url).expect("deploy Stem");

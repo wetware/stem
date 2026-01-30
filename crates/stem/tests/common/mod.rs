@@ -38,32 +38,46 @@ async fn wait_for_rpc(url: &str) -> Result<()> {
     anyhow::bail!("RPC not ready");
 }
 
-/// Deploy Stem contract. Run from repo root (where src/Stem.sol lives).
+/// Deploy Stem contract via forge script. Run from repo root (where src/Stem.sol lives).
+/// Parses the deployed address from the broadcast artifact (works across Foundry versions).
 pub fn deploy_stem(repo_root: &std::path::Path, rpc_url: &str) -> Result<String> {
     let out = Command::new("forge")
         .current_dir(repo_root)
         .args([
-            "create",
+            "script",
+            "script/Deploy.s.sol:Deploy",
             "--rpc-url", rpc_url,
+            "--broadcast",
             "--private-key", "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
-            "src/Stem.sol:Stem",
-            "--constructor-args", "0", "0x697066732d696e697469616c",
         ])
         .output()
-        .context("forge create")?;
+        .context("forge script")?;
     if !out.status.success() {
-        anyhow::bail!("forge create failed: {}", String::from_utf8_lossy(&out.stderr));
+        anyhow::bail!(
+            "forge script failed: {}",
+            String::from_utf8_lossy(&out.stderr)
+        );
     }
-    let s = String::from_utf8_lossy(&out.stdout);
-    for line in s.lines() {
-        if line.contains("Deployed to:") {
-            let addr = line.split_whitespace().last().unwrap_or("").trim();
-            if addr.starts_with("0x") {
-                return Ok(addr.to_string());
-            }
+    // Anvil chain id is 31337
+    let artifact_path = repo_root.join("broadcast/Deploy.s.sol/31337/run-latest.json");
+    let bytes = std::fs::read(&artifact_path)
+        .with_context(|| format!("read broadcast artifact: {}", artifact_path.display()))?;
+    let json: serde_json::Value =
+        serde_json::from_slice(&bytes).context("parse broadcast JSON")?;
+    let txs = json
+        .get("transactions")
+        .and_then(|t| t.as_array())
+        .ok_or_else(|| anyhow::anyhow!("broadcast: missing transactions array"))?;
+    for tx in txs {
+        if tx.get("transactionType").and_then(|t| t.as_str()) == Some("CREATE") {
+            let addr = tx
+                .get("contractAddress")
+                .and_then(|a| a.as_str())
+                .ok_or_else(|| anyhow::anyhow!("CREATE tx missing contractAddress"))?;
+            return Ok(addr.to_string());
         }
     }
-    anyhow::bail!("could not parse deployed address from: {}", s);
+    anyhow::bail!("no CREATE transaction in broadcast artifact");
 }
 
 /// Call setHead(hint, cid) via cast send.

@@ -75,12 +75,6 @@ pub fn decode_log_to_observed(log_value: &Value) -> Result<HeadUpdatedObserved> 
             .and_then(|h| h.as_str())
             .ok_or_else(|| anyhow::anyhow!("Missing transactionHash"))?,
     )?;
-    let writer = parse_hex_bytes_20(
-        log_value
-            .get("address")
-            .and_then(|a| a.as_str())
-            .ok_or_else(|| anyhow::anyhow!("Missing address"))?,
-    )?;
     let data = parse_hex_bytes(
         log_value
             .get("data")
@@ -101,7 +95,8 @@ pub fn decode_log_to_observed(log_value: &Value) -> Result<HeadUpdatedObserved> 
         }
         u64::from_be_bytes(t1[t1.len() - 8..].try_into().unwrap())
     };
-    let writer_from_topic = parse_hex_bytes_20(
+    // writer is indexed (topics[2]); log "address" is the contract that emitted the event.
+    let writer = parse_hex_bytes_20(
         topics[2]
             .as_str()
             .ok_or_else(|| anyhow::anyhow!("topic2 not str"))?,
@@ -111,9 +106,6 @@ pub fn decode_log_to_observed(log_value: &Value) -> Result<HeadUpdatedObserved> 
             .as_str()
             .ok_or_else(|| anyhow::anyhow!("topic3 not str"))?,
     )?;
-    if writer_from_topic != writer {
-        anyhow::bail!("Address vs topic2 writer mismatch");
-    }
     if data.len() < 64 {
         anyhow::bail!("Data too short for (uint8, bytes)");
     }
