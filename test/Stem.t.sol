@@ -45,6 +45,20 @@ contract StemTest is Test {
         stem.setHead(Stem.CIDKind.IPFS_UNIXFS, bytes("ipfs://new"));
     }
 
+    function test_SetHead_NoChange() public {
+        // Same hint and cid as initial head -> revert NoChange, seq unchanged
+        vm.expectRevert(Stem.NoChange.selector);
+        stem.setHead(Stem.CIDKind.IPFS_UNIXFS, bytes("ipfs-initial"));
+        assertEq(stem.seq(), 0);
+
+        // One real update, then no-op again -> revert NoChange, seq still 1
+        stem.setHead(Stem.CIDKind.IPFS_UNIXFS, bytes("ipfs://new"));
+        assertEq(stem.seq(), 1);
+        vm.expectRevert(Stem.NoChange.selector);
+        stem.setHead(Stem.CIDKind.IPFS_UNIXFS, bytes("ipfs://new"));
+        assertEq(stem.seq(), 1);
+    }
+
     function test_SetHead_MultipleUpdates() public {
         stem.setHead(Stem.CIDKind.IPFS_UNIXFS, bytes("ipfs://first"));
         assertEq(stem.seq(), 1);
@@ -59,30 +73,6 @@ contract StemTest is Test {
         assertEq(seq, 3);
         assertEq(uint8(h), uint8(Stem.CIDKind.BLOB));
         assertEq(cid, bytes("blob://third"));
-    }
-
-    function test_TransferOwnership() public {
-        stem.transferOwnership(user);
-        assertEq(stem.owner(), user);
-    }
-
-    function test_TransferOwnership_NotOwner() public {
-        vm.prank(user);
-        vm.expectRevert(Stem.NotOwner.selector);
-        stem.transferOwnership(user);
-    }
-
-    function test_TransferOwnership_ThenSetHead() public {
-        stem.transferOwnership(user);
-
-        vm.prank(user);
-        stem.setHead(Stem.CIDKind.IPFS_UNIXFS, bytes("ipfs://new-owner"));
-
-        assertEq(stem.seq(), 1);
-        (uint64 seq, Stem.CIDKind h, bytes memory cid) = stem.head();
-        assertEq(seq, 1);
-        assertEq(uint8(h), uint8(Stem.CIDKind.IPFS_UNIXFS));
-        assertEq(cid, bytes("ipfs://new-owner"));
     }
 
     function test_SetHead_IPFS_UNIXFS() public {

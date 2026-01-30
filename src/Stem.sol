@@ -33,6 +33,7 @@ contract Stem {
     );
 
     error NotOwner();
+    error NoChange();
 
     /// @notice Current authority allowed to advance the head.
     address public owner;
@@ -68,6 +69,7 @@ contract Stem {
     /// Emits a HeadUpdated event that off-chain watchers consume.
     function setHead(CIDKind newHint, bytes calldata newCid) external {
         if (msg.sender != owner) revert NotOwner();
+        if (newHint == hint && keccak256(newCid) == keccak256(_cid)) revert NoChange();
 
         unchecked {
             seq += 1;  // u64
@@ -76,12 +78,5 @@ contract Stem {
         _cid = newCid;
 
         emit HeadUpdated(seq, msg.sender, newHint, newCid, keccak256(newCid));
-    }
-
-    /// @notice Transfer authority to advance the head.
-    /// This is a placeholder for future governance / proxy control.
-    function transferOwnership(address newOwner) external {
-        if (msg.sender != owner) revert NotOwner();
-        owner = newOwner;
     }
 }
