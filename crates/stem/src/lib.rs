@@ -1,22 +1,20 @@
-//! This crate will implement head-following, finalization, and caching for the Stem contract.
+//! Off-chain Stem runtime: head-following and indexing for the Stem contract.
+//!
+//! This crate provides StemIndexer: observed-only indexing of HeadUpdated events
+//! (no reorg safety or confirmations in this iteration).
 
-/// Classification of how runtimes should interpret the head pointer.
-/// Mirrors Solidity `CIDKind`; hint is advisory; off-chain callers must validate defensively.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum CidKind {
-    IpfsUnixfs,
-    IpldNode,
-    Blob,
-    IpnsName,
-}
+pub mod abi;
+pub mod config;
+pub mod cursor;
+pub mod indexer;
 
-/// Current head state, mirroring the on-chain tuple `(seq, hint, cid)`.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Head {
-    pub seq: u64,
-    pub hint: CidKind,
-    pub cid: Vec<u8>,
-}
+pub use abi::{CidKind, CurrentHead, HeadUpdatedObserved};
+pub use config::{IndexerConfig, ReconnectionConfig};
+pub use cursor::Cursor;
+pub use indexer::StemIndexer;
+
+/// Current head state (alias for ABI CurrentHead).
+pub type Head = CurrentHead;
 
 #[cfg(test)]
 mod tests {
