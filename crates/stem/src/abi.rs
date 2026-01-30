@@ -178,12 +178,18 @@ fn parse_hex_bytes_32(s: &str) -> Result<[u8; 32]> {
 
 fn parse_hex_bytes_20(s: &str) -> Result<[u8; 20]> {
     let bytes = parse_hex_bytes(s)?;
-    if bytes.len() != 20 {
-        anyhow::bail!("Expected 20 bytes, got {}", bytes.len());
+    if bytes.len() == 20 {
+        let mut out = [0u8; 20];
+        out.copy_from_slice(&bytes);
+        Ok(out)
+    } else if bytes.len() == 32 {
+        // Indexed address in EVM is 32 bytes (right-padded); take last 20.
+        let mut out = [0u8; 20];
+        out.copy_from_slice(&bytes[12..32]);
+        Ok(out)
+    } else {
+        anyhow::bail!("Expected 20 or 32 bytes for address, got {}", bytes.len());
     }
-    let mut out = [0u8; 20];
-    out.copy_from_slice(&bytes);
-    Ok(out)
 }
 
 #[cfg(test)]
