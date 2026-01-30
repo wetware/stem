@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.13;
+pragma solidity ^0.8.24;
 
 import { Test } from "forge-std/Test.sol";
 import { Stem } from "../src/Stem.sol";
@@ -12,48 +12,53 @@ contract StemTest is Test {
     function setUp() public {
         owner = address(this);
         user = address(0x123);
-        stem = new Stem("ipfs://initial");
+        stem = new Stem(Stem.CIDKind.IPFS_UNIXFS, bytes("ipfs-initial"));
     }
 
     function test_Constructor() public view {
         assertEq(stem.owner(), owner);
         assertEq(stem.seq(), 0);
-        (uint64 seq, string memory head) = stem.head();
-        assertEq(seq, 0);
-        assertEq(head, "ipfs://initial");
+        (uint64 s, Stem.CIDKind h, bytes memory c) = stem.head();
+        assertEq(s, 0);
+        assertEq(uint8(h), uint8(Stem.CIDKind.IPFS_UNIXFS));
+        assertEq(keccak256(c), keccak256(bytes("ipfs-initial")));
     }
 
     function test_SetHead() public {
-        vm.expectEmit(true, true, false, true);
-        emit Stem.HeadUpdated(1, owner, "ipfs://new");
-        
-        stem.setHead("ipfs://new");
-        
+        bytes memory newCid = bytes("ipfs://new");
+        bytes32 expectedCidHash = keccak256(newCid);
+        vm.expectEmit(true, true, true, true);
+        emit Stem.HeadUpdated(1, owner, Stem.CIDKind.IPFS_UNIXFS, newCid, expectedCidHash);
+
+        stem.setHead(Stem.CIDKind.IPFS_UNIXFS, newCid);
+
         assertEq(stem.seq(), 1);
-        (uint64 seq, string memory head) = stem.head();
+        (uint64 seq, Stem.CIDKind h, bytes memory cid) = stem.head();
         assertEq(seq, 1);
-        assertEq(head, "ipfs://new");
+        assertEq(uint8(h), uint8(Stem.CIDKind.IPFS_UNIXFS));
+        assertEq(cid, newCid);
     }
 
     function test_SetHead_NotOwner() public {
         vm.prank(user);
         vm.expectRevert(Stem.NotOwner.selector);
-        stem.setHead("ipfs://new");
+        stem.setHead(Stem.CIDKind.IPFS_UNIXFS, bytes("ipfs://new"));
     }
 
     function test_SetHead_MultipleUpdates() public {
-        stem.setHead("ipfs://first");
+        stem.setHead(Stem.CIDKind.IPFS_UNIXFS, bytes("ipfs://first"));
         assertEq(stem.seq(), 1);
-        
-        stem.setHead("ipfs://second");
+
+        stem.setHead(Stem.CIDKind.IPLD_NODE, bytes("ipld://second"));
         assertEq(stem.seq(), 2);
-        
-        stem.setHead("ipfs://third");
+
+        stem.setHead(Stem.CIDKind.BLOB, bytes("blob://third"));
         assertEq(stem.seq(), 3);
-        
-        (uint64 seq, string memory head) = stem.head();
+
+        (uint64 seq, Stem.CIDKind h, bytes memory cid) = stem.head();
         assertEq(seq, 3);
-        assertEq(head, "ipfs://third");
+        assertEq(uint8(h), uint8(Stem.CIDKind.BLOB));
+        assertEq(cid, bytes("blob://third"));
     }
 
     function test_TransferOwnership() public {
@@ -69,13 +74,74 @@ contract StemTest is Test {
 
     function test_TransferOwnership_ThenSetHead() public {
         stem.transferOwnership(user);
-        
+
         vm.prank(user);
-        stem.setHead("ipfs://new-owner");
-        
+        stem.setHead(Stem.CIDKind.IPFS_UNIXFS, bytes("ipfs://new-owner"));
+
         assertEq(stem.seq(), 1);
-        (uint64 seq, string memory head) = stem.head();
+        (uint64 seq, Stem.CIDKind h, bytes memory cid) = stem.head();
         assertEq(seq, 1);
-        assertEq(head, "ipfs://new-owner");
+        assertEq(uint8(h), uint8(Stem.CIDKind.IPFS_UNIXFS));
+        assertEq(cid, bytes("ipfs://new-owner"));
+    }
+
+    function test_SetHead_IPFS_UNIXFS() public {
+        bytes memory cid = bytes("QmIPFS");
+        bytes32 cidHash = keccak256(cid);
+        vm.expectEmit(true, true, true, true);
+        emit Stem.HeadUpdated(1, owner, Stem.CIDKind.IPFS_UNIXFS, cid, cidHash);
+
+        stem.setHead(Stem.CIDKind.IPFS_UNIXFS, cid);
+
+        assertEq(stem.seq(), 1);
+        (uint64 seq, Stem.CIDKind h, bytes memory c) = stem.head();
+        assertEq(seq, 1);
+        assertEq(uint8(h), uint8(Stem.CIDKind.IPFS_UNIXFS));
+        assertEq(c, cid);
+    }
+
+    function test_SetHead_IPLD_NODE() public {
+        bytes memory cid = bytes("QmIPLD");
+        bytes32 cidHash = keccak256(cid);
+        vm.expectEmit(true, true, true, true);
+        emit Stem.HeadUpdated(1, owner, Stem.CIDKind.IPLD_NODE, cid, cidHash);
+
+        stem.setHead(Stem.CIDKind.IPLD_NODE, cid);
+
+        assertEq(stem.seq(), 1);
+        (uint64 seq, Stem.CIDKind h, bytes memory c) = stem.head();
+        assertEq(seq, 1);
+        assertEq(uint8(h), uint8(Stem.CIDKind.IPLD_NODE));
+        assertEq(c, cid);
+    }
+
+    function test_SetHead_BLOB() public {
+        bytes memory cid = bytes("blob-data");
+        bytes32 cidHash = keccak256(cid);
+        vm.expectEmit(true, true, true, true);
+        emit Stem.HeadUpdated(1, owner, Stem.CIDKind.BLOB, cid, cidHash);
+
+        stem.setHead(Stem.CIDKind.BLOB, cid);
+
+        assertEq(stem.seq(), 1);
+        (uint64 seq, Stem.CIDKind h, bytes memory c) = stem.head();
+        assertEq(seq, 1);
+        assertEq(uint8(h), uint8(Stem.CIDKind.BLOB));
+        assertEq(c, cid);
+    }
+
+    function test_SetHead_IPNS_NAME() public {
+        bytes memory cid = bytes("k51qzi5uqu5...");
+        bytes32 cidHash = keccak256(cid);
+        vm.expectEmit(true, true, true, true);
+        emit Stem.HeadUpdated(1, owner, Stem.CIDKind.IPNS_NAME, cid, cidHash);
+
+        stem.setHead(Stem.CIDKind.IPNS_NAME, cid);
+
+        assertEq(stem.seq(), 1);
+        (uint64 seq, Stem.CIDKind h, bytes memory c) = stem.head();
+        assertEq(seq, 1);
+        assertEq(uint8(h), uint8(Stem.CIDKind.IPNS_NAME));
+        assertEq(c, cid);
     }
 }
