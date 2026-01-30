@@ -1,5 +1,7 @@
 ## Foundry
 
+This repo contains a Foundry Solidity project and a Rust workspace under `crates/`. Run Solidity tests with `forge test` and the Rust crate with `cargo test -p stem`.
+
 **Foundry is a blazing fast, portable and modular toolkit for Ethereum application development written in Rust.**
 
 Foundry consists of:
