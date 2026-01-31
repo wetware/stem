@@ -7,7 +7,7 @@ import "../src/Stem.sol";
 contract Deploy is Script {
     function run() external {
         vm.startBroadcast();
-        Stem stem = new Stem(Stem.CIDKind.IPFS_UNIXFS, bytes("ipfs-initial"));
+        Stem stem = new Stem(bytes("ipfs-initial"));
         console.log("Stem deployed at:", address(stem));
         vm.stopBroadcast();
     }
