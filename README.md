@@ -57,6 +57,8 @@ $ forge script script/Deploy.s.sol:Deploy --rpc-url http://127.0.0.1:8545 --broa
 # Stem deployed at: 0x...  <- use this as --contract below
 ```
 
+**Membrane (ocap API):** The membrane is the capability API on top of the Stem finalizer/adopted-epoch stream. Processes may persist across epochs, but privileged capabilities do not—authority is bound to the current adopted epoch. After a staleEpoch, clients must re-auth (e.g. `Membrane.login`) to obtain a new session.
+
 **Stem examples (Rust):**
 
 - **stem_indexer** — observed HeadUpdated events (no confirmations):

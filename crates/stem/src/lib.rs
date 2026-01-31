@@ -6,6 +6,11 @@
 //!   configurable [Strategy] (e.g. [ConfirmationDepth]) and pass the canonical cross-check
 //!   (`Stem.head()`), giving reorg-safe finalized output.
 
+#[allow(unused_parens)] // generated capnp code
+pub mod stem_capnp {
+    include!(concat!(env!("OUT_DIR"), "/capnp/stem_capnp.rs"));
+}
+
 pub mod abi;
 pub mod config;
 pub mod cursor;

@@ -5,8 +5,12 @@ edition = "2021"
 description = "Off-chain Stem runtime: head-following, finalization, and caching for the Stem contract"
 
 
+[build-dependencies]
+capnpc = "0.19"
+
 [dependencies]
 alloy = { version = "0.4", features = ["rpc-types"] }
+capnp = "0.19"
 ciborium = "0.2"
 anyhow = "1"
 futures-util = "0.3"
