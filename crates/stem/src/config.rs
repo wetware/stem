@@ -32,3 +32,15 @@ impl Default for ReconnectionConfig {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn reconnection_config_default() {
+        let c = ReconnectionConfig::default();
+        assert_eq!(c.initial_backoff_secs, 1);
+        assert_eq!(c.max_backoff_secs, 60);
+    }
+}

@@ -208,4 +208,35 @@ mod tests {
     fn topic0_constant() {
         assert_eq!(HEAD_UPDATED_TOPIC0, [0xab, 0xb9, 0xa0, 0x0f]);
     }
+
+    /// Minimal ABI-encoded head() return: (uint64 seq, uint8 hint, bytes cid) with seq=0, hint=0, cid=[].
+    #[test]
+    fn decode_head_return_minimal() {
+        let mut data = [0u8; 96];
+        data[24..32].copy_from_slice(&0u64.to_be_bytes()); // seq
+        data[63] = 0; // hint
+        data[64..68].copy_from_slice(&64u32.to_be_bytes()); // offset to cid
+        // at 64: length 0, no cid bytes
+        let head = decode_head_return(&data).unwrap();
+        assert_eq!(head.seq, 0);
+        assert_eq!(head.hint, CidKind::IPFS_UNIXFS);
+        assert!(head.cid.is_empty());
+    }
+
+    /// decode_head_return with non-zero seq, hint=2 (BLOB), and short cid bytes.
+    #[test]
+    fn decode_head_return_with_cid() {
+        let seq: u64 = 42;
+        let cid: &[u8] = b"QmFoo";
+        let mut data = vec![0u8; 96 + 32 + cid.len()];
+        data[24..32].copy_from_slice(&seq.to_be_bytes());
+        data[63] = 2; // BLOB
+        data[64..68].copy_from_slice(&64u32.to_be_bytes());
+        data[64 + 28..64 + 32].copy_from_slice(&(cid.len() as u32).to_be_bytes());
+        data[96..96 + cid.len()].copy_from_slice(cid);
+        let head = decode_head_return(&data).unwrap();
+        assert_eq!(head.seq, 42);
+        assert_eq!(head.hint, CidKind::BLOB);
+        assert_eq!(head.cid, cid);
+    }
 }

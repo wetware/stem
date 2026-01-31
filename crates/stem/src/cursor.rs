@@ -15,3 +15,20 @@ impl Cursor {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn cursor_new() {
+        let c = Cursor::new(123);
+        assert_eq!(c.last_processed_block, 123);
+    }
+
+    #[test]
+    fn cursor_default() {
+        let c = Cursor::default();
+        assert_eq!(c.last_processed_block, 0);
+    }
+}
