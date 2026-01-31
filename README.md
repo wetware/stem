@@ -49,14 +49,21 @@ $ anvil
 
 ### Deploy
 
-Deploy the Stem contract (e.g. to local Anvil). The script prints the deployed address; use it with the `stem_indexer` example.
+Deploy the Stem contract (e.g. to local Anvil). The script prints the deployed address; use it with the stem examples.
 
 ```shell
 $ anvil
 $ forge script script/Deploy.s.sol:Deploy --rpc-url http://127.0.0.1:8545 --broadcast --private-key <your_private_key>
-# Stem deployed at: 0x...  <- use this as --contract for stem_indexer
-$ cargo run -p stem --example stem_indexer -- --rpc-url http://127.0.0.1:8545 --contract 0x...
+# Stem deployed at: 0x...  <- use this as --contract below
 ```
+
+**Stem examples (Rust):**
+
+- **stem_indexer** — observed HeadUpdated events (no confirmations):
+  `cargo run -p stem --example stem_indexer -- --rpc-url http://127.0.0.1:8545 --contract 0x...`
+
+- **finalizer** — finalized events only (confirmation-depth + canonical cross-check); prints one-line JSON per event:
+  `cargo run -p stem --example finalizer -- --ws-url ws://127.0.0.1:8545 --http-url http://127.0.0.1:8545 --contract 0x... [--depth 6]`
 
 ### Cast
 

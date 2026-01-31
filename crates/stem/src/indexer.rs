@@ -1,7 +1,9 @@
 //! StemIndexer: observed-only indexing of Stem HeadUpdated events.
 //!
 //! Subscribes via WebSocket, backfills via HTTP on startup/reconnect, maintains
-//! in-memory cursor and current HEAD. No reorg safety or confirmations in this iteration.
+//! in-memory cursor and current HEAD. No reorg safety or confirmations in the indexer
+//! itself; use the [crate::Finalizer] with a [crate::Strategy] (e.g. [crate::ConfirmationDepth])
+//! for reorg-safe, confirmation-based output.
 
 use crate::abi::{
     decode_head_return, decode_log_to_observed, CurrentHead, HeadUpdatedObserved, HEAD_SELECTOR,

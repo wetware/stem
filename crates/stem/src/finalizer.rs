@@ -1,9 +1,10 @@
 //! Finalizer: reorg-safe finalization of observed HeadUpdated events.
 //!
-//! Consumes observed `HeadUpdatedObserved` from the indexer and outputs only events that are
-//! eligible per the configured `Strategy` and pass the canonical cross-check (`Stem.head()`).
+//! Consumes observed [HeadUpdatedObserved] from the indexer and outputs only events that are
+//! eligible per the configured [Strategy] and pass the canonical cross-check (`Stem.head()`).
 //! Dedup key is `(tx_hash, log_index)` (globally unique per log; stable across reconnects/backfill).
-//! Configure via `Strategy`; use `ConfirmationDepth(k)` for depth-K finalization.
+//! Configure via [Strategy]; use [ConfirmationDepth] for depth-K finalization. See the
+//! `finalizer` example for a full pipeline (indexer → finalizer → JSON output).
 
 use crate::abi::{decode_head_return, HeadUpdatedObserved, HEAD_SELECTOR};
 use serde::Serialize;

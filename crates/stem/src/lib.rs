@@ -1,7 +1,10 @@
-//! Off-chain Stem runtime: head-following and indexing for the Stem contract.
+//! Off-chain Stem runtime: head-following, indexing, and finalization for the Stem contract.
 //!
-//! This crate provides StemIndexer: observed-only indexing of HeadUpdated events
-//! (no reorg safety or confirmations in this iteration).
+//! - **StemIndexer**: observed-only indexing of HeadUpdated events (WebSocket + HTTP backfill;
+//!   no reorg safety or confirmations in the indexer itself).
+//! - **Finalizer**: consumes indexer output and emits only events that are eligible per a
+//!   configurable [Strategy] (e.g. [ConfirmationDepth]) and pass the canonical cross-check
+//!   (`Stem.head()`), giving reorg-safe finalized output.
 
 pub mod abi;
 pub mod config;
