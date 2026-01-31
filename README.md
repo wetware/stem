@@ -49,8 +49,13 @@ $ anvil
 
 ### Deploy
 
+Deploy the Stem contract (e.g. to local Anvil). The script prints the deployed address; use it with the `stem_indexer` example.
+
 ```shell
-$ forge script script/Counter.s.sol:CounterScript --rpc-url <your_rpc_url> --private-key <your_private_key>
+$ anvil
+$ forge script script/Deploy.s.sol:Deploy --rpc-url http://127.0.0.1:8545 --broadcast --private-key <your_private_key>
+# Stem deployed at: 0x...  <- use this as --contract for stem_indexer
+$ cargo run -p stem --example stem_indexer -- --rpc-url http://127.0.0.1:8545 --contract 0x...
 ```
 
 ### Cast

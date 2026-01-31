@@ -1,44 +1,65 @@
-//! Example: run StemIndexer and print each HeadUpdatedObserved.
+//! Example: connect to an RPC endpoint and log Stem head updates.
 //!
-//! Usage: cargo run -p stem --example stem_indexer -- --http-url URL --ws-url WS_URL --contract 0x...
+//! Imports the stem lib, runs StemIndexer against a Stem contract, and prints each
+//! HeadUpdated event (seq, block, writer, cid length). WebSocket URL is derived from
+//! the HTTP RPC URL (http -> ws, https -> wss).
+//!
+//! Usage:
+//!
+//!   cargo run -p stem --example stem_indexer -- --rpc-url <HTTP_URL> --contract <STEM_ADDRESS>
+//!
+//! Getting the contract address: deploy Stem with Foundry, then use the printed address:
+//!
+//!   anvil
+//!   forge script script/Deploy.s.sol --rpc-url http://127.0.0.1:8545 --broadcast --private-key 0xac0974...
+//!   # "Stem deployed at: 0x..." is the address to pass as --contract
+//!
+//!   cargo run -p stem --example stem_indexer -- --rpc-url http://127.0.0.1:8545 --contract 0x...
 
 use stem::{IndexerConfig, StemIndexer};
 use std::sync::Arc;
-use std::time::Duration;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing_subscriber::fmt::init();
     let args: Vec<String> = std::env::args().collect();
-    let mut http_url = String::new();
-    let mut ws_url = String::new();
+    let mut rpc_url = String::new();
     let mut contract = String::new();
     let mut i = 1;
     while i < args.len() {
         match args[i].as_str() {
-            "--http-url" => {
+            "--rpc-url" => {
                 i += 1;
-                http_url = args.get(i).cloned().unwrap_or_default();
-            }
-            "--ws-url" => {
-                i += 1;
-                ws_url = args.get(i).cloned().unwrap_or_default();
+                rpc_url = args.get(i).cloned().unwrap_or_default();
             }
             "--contract" => {
                 i += 1;
                 contract = args.get(i).cloned().unwrap_or_default();
             }
+            "--help" | "-h" => {
+                eprintln!(
+                    "Usage: stem_indexer --rpc-url <HTTP_URL> --contract <STEM_ADDRESS>\n\
+                     Logs HeadUpdated events from the Stem contract. WS URL is derived from RPC URL."
+                );
+                std::process::exit(0);
+            }
             _ => {}
         }
         i += 1;
     }
-    if http_url.is_empty() || ws_url.is_empty() || contract.is_empty() {
-        eprintln!("Usage: stem_indexer --http-url URL --ws-url WS_URL --contract 0xADDR");
+    if rpc_url.is_empty() || contract.is_empty() {
+        eprintln!("Usage: stem_indexer --rpc-url <HTTP_URL> --contract <STEM_ADDRESS>");
+        eprintln!("       (WebSocket URL is derived from the RPC URL)");
         std::process::exit(1);
     }
+    let http_url = rpc_url.clone();
+    let ws_url = rpc_url
+        .replace("http://", "ws://")
+        .replace("https://", "wss://");
+
     let addr_hex = contract.strip_prefix("0x").unwrap_or(&contract);
     let addr_bytes = hex::decode(addr_hex)?;
     if addr_bytes.len() != 20 {
-        eprintln!("contract must be 20 bytes");
+        eprintln!("contract must be 20 bytes (40 hex chars)");
         std::process::exit(1);
     }
     let mut contract_address = [0u8; 20];
@@ -46,7 +67,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let config = IndexerConfig {
         ws_url,
-        http_url: http_url.clone(),
+        http_url,
         contract_address,
         start_block: 0,
         getlogs_max_range: 1000,
@@ -75,7 +96,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         ev.cid.len()
                     );
                 }
-                _ = tokio::time::sleep(Duration::from_secs(3600)) => break,
+                _ = tokio::signal::ctrl_c() => break,
             }
         }
     });
