@@ -15,3 +15,7 @@ docs/
 
 # Rust build artifacts
 /target/
+
+# Coverage
+*.profraw
+*.profdata
