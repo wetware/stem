@@ -5,6 +5,22 @@ use std::process::{Child, Command, Stdio};
 use std::time::Duration;
 use tokio::time::sleep;
 
+/// True if `anvil`, `forge`, and `cast` are in PATH (Foundry toolchain available).
+/// Use at the start of integration tests to skip when not in CI/local dev with Foundry.
+pub fn foundry_available() -> bool {
+    fn in_path(cmd: &str, args: &[&str]) -> bool {
+        Command::new(cmd)
+            .args(args)
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .output()
+            .map(|o| o.status.success())
+            .unwrap_or(false)
+    }
+    in_path("anvil", &["--help"]) && in_path("forge", &["--help"]) && in_path("cast", &["--help"])
+}
+
 /// Spawn Anvil on a dynamic port and wait until ready.
 pub async fn spawn_anvil() -> Result<(Child, String)> {
     let port = {
@@ -80,14 +96,14 @@ pub fn deploy_stem(repo_root: &std::path::Path, rpc_url: &str) -> Result<String>
     anyhow::bail!("no CREATE transaction in broadcast artifact");
 }
 
-/// Call setHead(hint, cid) via cast send.
-pub fn set_head(repo_root: &std::path::Path, rpc_url: &str, contract: &str, hint: u8, cid_hex: &str) -> Result<()> {
+/// Call setHead(bytes) via cast send (Option A).
+pub fn set_head(repo_root: &std::path::Path, rpc_url: &str, contract: &str, cid_hex: &str) -> Result<()> {
     let out = Command::new("cast")
         .current_dir(repo_root)
         .args([
             "send", contract,
-            "setHead(uint8,bytes)",
-            &hint.to_string(), cid_hex,
+            "setHead(bytes)",
+            cid_hex,
             "--rpc-url", rpc_url,
             "--private-key", "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
         ])

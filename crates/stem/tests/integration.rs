@@ -11,8 +11,11 @@ use tokio::time::timeout;
 use tracing_subscriber::EnvFilter;
 
 #[tokio::test]
-#[ignore] // requires anvil, forge, cast in PATH; run with: cargo test -p stem --test integration -- --ignored
 async fn test_indexer_against_anvil() {
+    if !common::foundry_available() {
+        eprintln!("skipping test_indexer_against_anvil: anvil/forge/cast not in PATH");
+        return;
+    }
     let _ = tracing_subscriber::fmt()
         .with_env_filter(EnvFilter::from_default_env().add_directive("stem=debug".parse().unwrap()))
         .with_test_writer()
@@ -25,9 +28,9 @@ async fn test_indexer_against_anvil() {
     let mut contract_address = [0u8; 20];
     contract_address.copy_from_slice(&addr_bytes);
 
-    set_head(repo_root, &rpc_url, &contract_addr, 0, "0x697066732f2f6669727374").expect("setHead 1");
-    set_head(repo_root, &rpc_url, &contract_addr, 1, "0x69706c642f2f7365636f6e64").expect("setHead 2");
-    set_head(repo_root, &rpc_url, &contract_addr, 2, "0x626c6f622f2f7468697264").expect("setHead 3");
+    set_head(repo_root, &rpc_url, &contract_addr, "0x697066732f2f6669727374").expect("setHead 1");
+    set_head(repo_root, &rpc_url, &contract_addr, "0x69706c642f2f7365636f6e64").expect("setHead 2");
+    set_head(repo_root, &rpc_url, &contract_addr, "0x626c6f622f2f7468697264").expect("setHead 3");
 
     let ws_url = rpc_url.replace("http://", "ws://").replace("https://", "wss://");
     let config = IndexerConfig {
