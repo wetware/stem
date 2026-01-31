@@ -117,7 +117,7 @@ pub fn validate_trie_root_v0(bytes: &[u8]) -> Result<TrieRootV0, TrieError> {
 
 fn as_i128(v: &Value) -> Option<i128> {
     match v {
-        Value::Integer(i) => (*i).try_into().ok(),
+        Value::Integer(i) => Some((*i).into()),
         _ => None,
     }
 }

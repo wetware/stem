@@ -137,7 +137,7 @@ impl FinalizerBuilder {
     }
 
     /// Set the eligibility strategy (stored as `Box<dyn Strategy + Send>`).
-    pub fn strategy(mut self, s: impl Strategy + Send + 'static) -> Self {
+    pub fn strategy(mut self, s: impl Strategy + 'static) -> Self {
         self.strategy = Some(Box::new(s));
         self
     }

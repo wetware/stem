@@ -349,6 +349,7 @@ fn log_matches_head_updated(log: &Value) -> bool {
     bytes[..4] == HEAD_UPDATED_TOPIC0
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn backfill(
     client: &reqwest::Client,
     http_url: &str,
@@ -379,7 +380,7 @@ async fn backfill(
                 );
                 let raw = eth_get_logs(client, http_url, fallback).await?;
                 raw.into_iter()
-                    .filter(|log| log_matches_head_updated(log))
+                    .filter(log_matches_head_updated)
                     .collect::<Vec<_>>()
             }
         };
@@ -393,7 +394,7 @@ async fn backfill(
             match eth_get_logs(client, http_url, fallback).await {
                 Ok(raw) => raw
                     .into_iter()
-                    .filter(|log| log_matches_head_updated(log))
+                    .filter(log_matches_head_updated)
                     .collect::<Vec<_>>(),
                 Err(_) => logs,
             }
