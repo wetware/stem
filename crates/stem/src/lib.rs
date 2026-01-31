@@ -9,7 +9,7 @@ pub mod cursor;
 pub mod indexer;
 pub mod trie;
 
-pub use abi::{CidKind, CurrentHead, HeadUpdatedObserved};
+pub use abi::{CurrentHead, HeadUpdatedObserved};
 pub use config::{IndexerConfig, ReconnectionConfig};
 pub use cursor::Cursor;
 pub use indexer::StemIndexer;

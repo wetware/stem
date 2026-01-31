@@ -1,35 +1,13 @@
 //! ABI types and decoding for the Stem contract.
 //!
 //! HeadUpdated event and head() view. Decode from JSON-RPC log shape and eth_call return.
+//! Option A: no CIDKind/hint; head() returns (uint64, bytes), event HeadUpdated(seq, writer, cid, cidHash).
 
 use anyhow::{Context, Result};
 use serde_json::Value;
 
-/// CIDKind matches Solidity `CIDKind` declaration order (discriminant = uint8).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[repr(u8)]
-#[allow(non_camel_case_types)]
-pub enum CidKind {
-    IPFS_UNIXFS = 0,
-    IPLD_NODE = 1,
-    BLOB = 2,
-    IPNS_NAME = 3,
-}
-
-impl CidKind {
-    pub fn from_u8(n: u8) -> Option<Self> {
-        match n {
-            0 => Some(CidKind::IPFS_UNIXFS),
-            1 => Some(CidKind::IPLD_NODE),
-            2 => Some(CidKind::BLOB),
-            3 => Some(CidKind::IPNS_NAME),
-            _ => None,
-        }
-    }
-}
-
-/// First 4 bytes of keccak256("HeadUpdated(uint64,address,uint8,bytes,bytes32)").
-pub const HEAD_UPDATED_TOPIC0: [u8; 4] = [0xab, 0xb9, 0xa0, 0x0f];
+/// First 4 bytes of keccak256("HeadUpdated(uint64,address,bytes,bytes32)").
+pub const HEAD_UPDATED_TOPIC0: [u8; 4] = [0x85, 0xf2, 0xcb, 0x2e];
 
 /// Selector for head().
 pub const HEAD_SELECTOR: [u8; 4] = [0x8f, 0x7d, 0xcf, 0xa3];
@@ -39,7 +17,6 @@ pub const HEAD_SELECTOR: [u8; 4] = [0x8f, 0x7d, 0xcf, 0xa3];
 pub struct HeadUpdatedObserved {
     pub seq: u64,
     pub writer: [u8; 20],
-    pub hint: CidKind,
     pub cid: Vec<u8>,
     pub cid_hash: [u8; 32],
     pub block_number: u64,
@@ -51,11 +28,12 @@ pub struct HeadUpdatedObserved {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CurrentHead {
     pub seq: u64,
-    pub hint: CidKind,
     pub cid: Vec<u8>,
 }
 
 /// Decode a JSON-RPC log (eth_subscription / eth_getLogs result) into HeadUpdatedObserved.
+/// Option A: event HeadUpdated(uint64 indexed seq, address indexed writer, bytes cid, bytes32 indexed cidHash).
+/// Data is ABI-encoded single bytes: offset (32) then at offset: length then cid.
 pub fn decode_log_to_observed(log_value: &Value) -> Result<HeadUpdatedObserved> {
     let block_number = parse_hex_u64(
         log_value
@@ -95,7 +73,6 @@ pub fn decode_log_to_observed(log_value: &Value) -> Result<HeadUpdatedObserved> 
         }
         u64::from_be_bytes(t1[t1.len() - 8..].try_into().unwrap())
     };
-    // writer is indexed (topics[2]); log "address" is the contract that emitted the event.
     let writer = parse_hex_bytes_20(
         topics[2]
             .as_str()
@@ -106,27 +83,19 @@ pub fn decode_log_to_observed(log_value: &Value) -> Result<HeadUpdatedObserved> 
             .as_str()
             .ok_or_else(|| anyhow::anyhow!("topic3 not str"))?,
     )?;
+    // Option A: data is single bytes: offset (32 bytes) then at offset: length (32) then cid
     if data.len() < 64 {
-        anyhow::bail!("Data too short for (uint8, bytes)");
+        anyhow::bail!("Data too short for bytes");
     }
-    let hint_byte = data[31];
-    let hint = CidKind::from_u8(hint_byte)
-        .ok_or_else(|| anyhow::anyhow!("Invalid CidKind {}", hint_byte))?;
-    let offset = u32::from_be_bytes(data[32..36].try_into().unwrap()) as usize;
-    if data.len() < offset + 32 {
-        anyhow::bail!("Data too short for bytes at offset {}", offset);
-    }
-    let len_word_start = offset;
-    let len = u32::from_be_bytes(data[len_word_start + 28..len_word_start + 32].try_into().unwrap()) as usize;
-    if data.len() < offset + 32 + len {
+    let len = u32::from_be_bytes(data[60..64].try_into().unwrap()) as usize;
+    if data.len() < 64 + len {
         anyhow::bail!("Data too short for cid len {}", len);
     }
-    let cid = data[offset + 32..offset + 32 + len].to_vec();
+    let cid = data[64..64 + len].to_vec();
 
     Ok(HeadUpdatedObserved {
         seq,
         writer,
-        hint,
         cid,
         cid_hash,
         block_number,
@@ -135,16 +104,13 @@ pub fn decode_log_to_observed(log_value: &Value) -> Result<HeadUpdatedObserved> 
     })
 }
 
-/// Decode head() return data (eth_call result): (uint64, uint8, bytes) ABI.
+/// Decode head() return data (eth_call result): (uint64, bytes) ABI.
 pub fn decode_head_return(data: &[u8]) -> Result<CurrentHead> {
-    if data.len() < 96 {
+    if data.len() < 64 {
         anyhow::bail!("head() return too short");
     }
     let seq = u64::from_be_bytes(data[24..32].try_into().unwrap());
-    let hint_byte = data[63];
-    let hint = CidKind::from_u8(hint_byte)
-        .ok_or_else(|| anyhow::anyhow!("Invalid CidKind {}", hint_byte))?;
-    let cid_offset = u32::from_be_bytes(data[64..68].try_into().unwrap()) as usize;
+    let cid_offset = u32::from_be_bytes(data[32..36].try_into().unwrap()) as usize;
     if data.len() < cid_offset + 32 {
         anyhow::bail!("head() return too short for cid offset");
     }
@@ -153,7 +119,7 @@ pub fn decode_head_return(data: &[u8]) -> Result<CurrentHead> {
         anyhow::bail!("head() return too short for cid");
     }
     let cid = data[cid_offset + 32..cid_offset + 32 + cid_len].to_vec();
-    Ok(CurrentHead { seq, hint, cid })
+    Ok(CurrentHead { seq, cid })
 }
 
 fn parse_hex_u64(s: &str) -> Result<u64> {
@@ -183,7 +149,6 @@ fn parse_hex_bytes_20(s: &str) -> Result<[u8; 20]> {
         out.copy_from_slice(&bytes);
         Ok(out)
     } else if bytes.len() == 32 {
-        // Indexed address in EVM is 32 bytes (right-padded); take last 20.
         let mut out = [0u8; 20];
         out.copy_from_slice(&bytes[12..32]);
         Ok(out)
@@ -197,46 +162,33 @@ mod tests {
     use super::*;
 
     #[test]
-    fn cid_kind_discriminants() {
-        assert_eq!(CidKind::IPFS_UNIXFS as u8, 0);
-        assert_eq!(CidKind::IPLD_NODE as u8, 1);
-        assert_eq!(CidKind::BLOB as u8, 2);
-        assert_eq!(CidKind::IPNS_NAME as u8, 3);
-    }
-
-    #[test]
     fn topic0_constant() {
-        assert_eq!(HEAD_UPDATED_TOPIC0, [0xab, 0xb9, 0xa0, 0x0f]);
+        assert_eq!(HEAD_UPDATED_TOPIC0, [0x85, 0xf2, 0xcb, 0x2e]);
     }
 
-    /// Minimal ABI-encoded head() return: (uint64 seq, uint8 hint, bytes cid) with seq=0, hint=0, cid=[].
+    /// Minimal ABI-encoded head() return: (uint64 seq, bytes cid) with seq=0, cid=[].
     #[test]
     fn decode_head_return_minimal() {
         let mut data = [0u8; 96];
         data[24..32].copy_from_slice(&0u64.to_be_bytes()); // seq
-        data[63] = 0; // hint
-        data[64..68].copy_from_slice(&64u32.to_be_bytes()); // offset to cid
-        // at 64: length 0, no cid bytes
+        data[32..36].copy_from_slice(&64u32.to_be_bytes()); // offset to cid
         let head = decode_head_return(&data).unwrap();
         assert_eq!(head.seq, 0);
-        assert_eq!(head.hint, CidKind::IPFS_UNIXFS);
         assert!(head.cid.is_empty());
     }
 
-    /// decode_head_return with non-zero seq, hint=2 (BLOB), and short cid bytes.
+    /// Option A: (uint64, bytes); cid at offset 64, length at 92..96, cid bytes at 96..
     #[test]
     fn decode_head_return_with_cid() {
         let seq: u64 = 42;
         let cid: &[u8] = b"QmFoo";
-        let mut data = vec![0u8; 96 + 32 + cid.len()];
+        let mut data = vec![0u8; 96 + cid.len()];
         data[24..32].copy_from_slice(&seq.to_be_bytes());
-        data[63] = 2; // BLOB
-        data[64..68].copy_from_slice(&64u32.to_be_bytes());
-        data[64 + 28..64 + 32].copy_from_slice(&(cid.len() as u32).to_be_bytes());
+        data[32..36].copy_from_slice(&64u32.to_be_bytes()); // offset to cid
+        data[92..96].copy_from_slice(&(cid.len() as u32).to_be_bytes()); // length at 64+28..64+32
         data[96..96 + cid.len()].copy_from_slice(cid);
         let head = decode_head_return(&data).unwrap();
         assert_eq!(head.seq, 42);
-        assert_eq!(head.hint, CidKind::BLOB);
         assert_eq!(head.cid, cid);
     }
 }

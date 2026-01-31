@@ -324,7 +324,6 @@ async fn run_once(
             &indexer.current_head,
             CurrentHead {
                 seq: observed.seq,
-                hint: observed.hint,
                 cid: observed.cid,
             },
         ).await;
@@ -417,7 +416,6 @@ async fn backfill(
                 current_head,
                 CurrentHead {
                     seq: o.seq,
-                    hint: o.hint,
                     cid: o.cid,
                 },
             ).await;

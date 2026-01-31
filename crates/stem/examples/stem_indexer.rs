@@ -67,12 +67,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             tokio::select! {
                 Ok(ev) = recv.recv() => {
                     println!(
-                        "HeadUpdated seq={} block={} log_index={} writer=0x{} hint={:?} cid_len={}",
+                        "HeadUpdated seq={} block={} log_index={} writer=0x{} cid_len={}",
                         ev.seq,
                         ev.block_number,
                         ev.log_index,
                         hex::encode(ev.writer),
-                        ev.hint,
                         ev.cid.len()
                     );
                 }
