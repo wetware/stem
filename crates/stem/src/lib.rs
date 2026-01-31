@@ -6,12 +6,16 @@
 pub mod abi;
 pub mod config;
 pub mod cursor;
+pub mod finalizer;
 pub mod indexer;
 pub mod trie;
 
 pub use abi::{CurrentHead, HeadUpdatedObserved};
 pub use config::{IndexerConfig, ReconnectionConfig};
 pub use cursor::Cursor;
+pub use finalizer::{
+    ConfirmationDepth, FinalizedEvent, Finalizer, FinalizerBuilder, FinalizerError, Strategy,
+};
 pub use indexer::StemIndexer;
 pub use trie::{validate_trie_root_v0, TrieError, TrieRootV0};
 

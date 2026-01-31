@@ -28,3 +28,7 @@ tokio-test = "0.4"
 [[example]]
 name = "stem_indexer"
 path = "examples/stem_indexer.rs"
+
+[[example]]
+name = "finalizer"
+path = "examples/finalizer.rs"
