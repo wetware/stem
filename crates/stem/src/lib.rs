@@ -16,6 +16,7 @@ pub mod config;
 pub mod cursor;
 pub mod finalizer;
 pub mod indexer;
+pub mod membrane;
 pub mod trie;
 
 pub use abi::{CurrentHead, HeadUpdatedObserved};
@@ -25,6 +26,7 @@ pub use finalizer::{
     ConfirmationDepth, FinalizedEvent, Finalizer, FinalizerBuilder, FinalizerError, Strategy,
 };
 pub use indexer::StemIndexer;
+pub use membrane::{membrane_client, Epoch, MembraneServer};
 pub use trie::{validate_trie_root_v0, TrieError, TrieRootV0};
 
 /// Current head state (alias for ABI CurrentHead).
