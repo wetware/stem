@@ -7,11 +7,13 @@ pub mod abi;
 pub mod config;
 pub mod cursor;
 pub mod indexer;
+pub mod trie;
 
 pub use abi::{CidKind, CurrentHead, HeadUpdatedObserved};
 pub use config::{IndexerConfig, ReconnectionConfig};
 pub use cursor::Cursor;
 pub use indexer::StemIndexer;
+pub use trie::{validate_trie_root_v0, TrieError, TrieRootV0};
 
 /// Current head state (alias for ABI CurrentHead).
 pub type Head = CurrentHead;
