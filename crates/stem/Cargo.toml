@@ -37,3 +37,7 @@ path = "examples/stem_indexer.rs"
 [[example]]
 name = "finalizer"
 path = "examples/finalizer.rs"
+
+[[example]]
+name = "membrane_poll"
+path = "examples/membrane_poll.rs"
