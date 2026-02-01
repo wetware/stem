@@ -31,8 +31,11 @@ impl Strategy for ConfirmationDepth {
 #[derive(Debug, Clone, Serialize)]
 pub struct FinalizedEvent {
     pub seq: u64,
+    /// Raw head bytes from the event (used to build Epoch.head).
+    pub cid: Vec<u8>,
     #[serde(rename = "cid_hash")]
     pub cid_hash_hex: String,
+    /// Block that satisfied eligibility; use as Epoch.adopted_block.
     pub block_number: u64,
     #[serde(rename = "tx_hash")]
     pub tx_hash_hex: String,
@@ -44,6 +47,7 @@ impl FinalizedEvent {
     fn from_observed(ev: &HeadUpdatedObserved) -> Self {
         Self {
             seq: ev.seq,
+            cid: ev.cid.clone(),
             cid_hash_hex: hex::encode(ev.cid_hash),
             block_number: ev.block_number,
             tx_hash_hex: hex::encode(ev.tx_hash),

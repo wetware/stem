@@ -104,21 +104,22 @@ impl stem_capnp::watcher::Server for WatcherServer {
         mut results: stem_capnp::watcher::NextResults,
     ) -> Promise<(), Error> {
         let mut receiver = self.receiver.clone();
-        match tokio::runtime::Handle::current().block_on(receiver.changed()) {
-            Ok(()) => {}
-            Err(_) => return Promise::err(Error::failed("epoch watcher closed".to_string())),
-        }
-        let epoch = receiver.borrow().clone();
-        let results_builder = results.get();
-        let mut epoch_builder = results_builder.init_epoch();
-        match fill_epoch_builder(&mut epoch_builder, &epoch) {
-            Ok(()) => Promise::ok(()),
-            Err(e) => Promise::err(e),
-        }
+        Promise::from_future(async move {
+            receiver
+                .changed()
+                .await
+                .map_err(|_| Error::failed("epoch watcher closed".to_string()))?;
+            let epoch = receiver.borrow().clone();
+            let results_builder = results.get();
+            let mut epoch_builder = results_builder.init_epoch();
+            fill_epoch_builder(&mut epoch_builder, &epoch)?;
+            Ok(())
+        })
     }
 }
 
 /// StatusPoller server: epoch-scoped; pollStatus returns StaleEpoch when seq differs.
+/// Status::InternalError is reserved for implementation failures; do not use it for epoch staleness.
 struct StatusPollerServer {
     issuance_epoch: Epoch,
     receiver: watch::Receiver<Epoch>,
