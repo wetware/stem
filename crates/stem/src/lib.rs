@@ -25,7 +25,7 @@ pub use cursor::Cursor;
 pub use finalizer::{
     ConfirmationDepth, FinalizedEvent, Finalizer, FinalizerBuilder, FinalizerError, Strategy,
 };
-pub use indexer::StemIndexer;
+pub use indexer::{current_block_number, StemIndexer};
 pub use membrane::{membrane_client, Epoch, MembraneServer};
 pub use trie::{validate_trie_root_v0, TrieError, TrieRootV0};
 

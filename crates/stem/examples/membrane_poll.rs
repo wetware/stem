@@ -11,13 +11,11 @@
 //!
 //! Options:
 //!   --depth <K>   Confirmation depth (blocks after event before finalized). Default: 2.
-//!   --cursor <path>  Path to file with start block (one line, decimal). Optional.
 
 use capnp_rpc::new_client;
 use stem::stem_capnp;
-use stem::{FinalizerBuilder, IndexerConfig, StemIndexer, Epoch};
+use stem::{current_block_number, FinalizerBuilder, IndexerConfig, StemIndexer, Epoch};
 use stem::{FinalizedEvent, membrane_client};
-use std::io::BufRead;
 use std::sync::Arc;
 use tokio::sync::watch;
 
@@ -30,19 +28,6 @@ fn parse_contract_address(s: &str) -> Result<[u8; 20], String> {
     let mut out = [0u8; 20];
     out.copy_from_slice(&addr_bytes);
     Ok(out)
-}
-
-fn read_start_block_from_file(path: &str) -> u64 {
-    let file = match std::fs::File::open(path) {
-        Ok(f) => f,
-        Err(_) => return 0,
-    };
-    let mut line = String::new();
-    let mut reader = std::io::BufReader::new(file);
-    if reader.read_line(&mut line).is_err() || line.is_empty() {
-        return 0;
-    }
-    line.trim().parse().unwrap_or(0)
 }
 
 fn finalized_to_epoch(e: &FinalizedEvent) -> Epoch {
@@ -73,7 +58,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut ws_url = String::new();
     let mut http_url = String::new();
     let mut contract = String::new();
-    let mut cursor_path = String::new();
     let mut depth: u64 = 2;
     let mut i = 1;
     while i < args.len() {
@@ -90,10 +74,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 i += 1;
                 contract = args.get(i).cloned().unwrap_or_default();
             }
-            "--cursor" => {
-                i += 1;
-                cursor_path = args.get(i).cloned().unwrap_or_default();
-            }
             "--depth" => {
                 i += 1;
                 if let Some(s) = args.get(i) {
@@ -102,8 +82,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
             "--help" | "-h" => {
                 eprintln!(
-                    "Usage: membrane_poll --ws-url <WS_URL> --http-url <HTTP_URL> --contract <STEM_ADDRESS> [--depth K] [--cursor <path>]\n\
-                     Runs indexer → finalizer → membrane → graft → pollStatus. Use small --depth (1–2) on a dev chain.\n\
+                    "Usage: membrane_poll --ws-url <WS_URL> --http-url <HTTP_URL> --contract <STEM_ADDRESS> [--depth K]\n\
+                     Runs indexer → finalizer → membrane → graft → pollStatus (live-only from current block). Use small --depth (1–2) on a dev chain.\n\
                      After first epoch, run the printed cast send in another terminal to trigger staleness + re-graft."
                 );
                 std::process::exit(0);
@@ -113,7 +93,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         i += 1;
     }
     if ws_url.is_empty() || http_url.is_empty() || contract.is_empty() {
-        eprintln!("Usage: membrane_poll --ws-url <WS_URL> --http-url <HTTP_URL> --contract <STEM_ADDRESS> [--depth K] [--cursor <path>]");
+        eprintln!("Usage: membrane_poll --ws-url <WS_URL> --http-url <HTTP_URL> --contract <STEM_ADDRESS> [--depth K]");
         std::process::exit(1);
     }
     let contract_address = match parse_contract_address(&contract) {
@@ -123,29 +103,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             std::process::exit(1);
         }
     };
-    let start_block = if cursor_path.is_empty() {
-        0
-    } else {
-        read_start_block_from_file(&cursor_path)
-    };
-
-    let config = IndexerConfig {
-        ws_url: ws_url.clone(),
-        http_url: http_url.clone(),
-        contract_address,
-        start_block,
-        getlogs_max_range: 1000,
-        reconnection: Default::default(),
-    };
-    let indexer = Arc::new(StemIndexer::new(config));
-    let mut recv = indexer.subscribe();
-    let indexer_clone = Arc::clone(&indexer);
-    std::thread::spawn(move || {
-        let rt = tokio::runtime::Runtime::new().unwrap();
-        rt.block_on(async {
-            let _ = indexer_clone.run().await;
-        });
-    });
 
     let mut finalizer = FinalizerBuilder::new()
         .http_url(&http_url)
@@ -158,6 +115,27 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let rt = tokio::runtime::Runtime::new()?;
     rt.block_on(async {
+        let start_block = current_block_number(&http_url)
+            .await
+            .map_err(|e| capnp::Error::failed(format!("current_block_number: {}", e)))?;
+        let config = IndexerConfig {
+            ws_url: ws_url.clone(),
+            http_url: http_url.clone(),
+            contract_address,
+            start_block,
+            getlogs_max_range: 1000,
+            reconnection: Default::default(),
+        };
+        let indexer = Arc::new(StemIndexer::new(config));
+        let mut recv = indexer.subscribe();
+        let indexer_clone = Arc::clone(&indexer);
+        std::thread::spawn(move || {
+            let rt = tokio::runtime::Runtime::new().unwrap();
+            rt.block_on(async {
+                let _ = indexer_clone.run().await;
+            });
+        });
+
         let mut epoch_tx: Option<watch::Sender<Epoch>> = None;
         let mut membrane: Option<stem_capnp::membrane::Client> = None;
         let mut poller: Option<stem_capnp::status_poller::Client> = None;

@@ -91,6 +91,13 @@ async fn eth_block_number(client: &reqwest::Client, http_url: &str) -> Result<u6
     u64::from_str_radix(s, 16).context("parse block number")
 }
 
+/// Returns the current chain tip (latest block number) via JSON-RPC eth_blockNumber.
+/// Useful for starting an indexer from "now" (live-only, no backfill of older blocks).
+pub async fn current_block_number(http_url: &str) -> Result<u64> {
+    let client = reqwest::Client::new();
+    eth_block_number(&client, http_url).await
+}
+
 async fn eth_get_logs(
     client: &reqwest::Client,
     http_url: &str,
