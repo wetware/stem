@@ -3,7 +3,7 @@
 //! Demonstrates the real authority model: run the indexer and finalizer until the first
 //! finalized event, then construct the membrane from that epoch, graft, and poll. When a
 //! new epoch is adopted (user triggers setHead in another terminal), the same poller
-//! returns StaleEpoch; re-graft to obtain a new session and poll Ok again.
+//! fails with an RPC error; re-graft to obtain a new session and poll Ok again.
 //!
 //! Usage:
 //!
@@ -168,23 +168,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         let current_seq = epoch.seq;
 
                         if let Some(tx) = &epoch_tx {
-                            // New epoch adopted: send it, print epoch_advanced, poll same poller -> StaleEpoch, re-graft -> Ok.
+                            // New epoch adopted: send it, print epoch_advanced, poll same poller -> RPC error, re-graft -> Ok.
                             tx.send(epoch.clone()).ok();
                             let old_seq = last_adopted_seq.unwrap_or(0);
                             println!("epoch_advanced old_seq={} new_seq={}", old_seq, current_seq);
 
                             let issued_seq = first_issued_seq.unwrap_or(0);
                             let p = poller.as_ref().unwrap().poll_status_request();
-                            let r = p.send().promise.await?;
-                            let status = r.get()?.get_status()?;
-                            let status_str = match status {
-                                stem_capnp::Status::Ok => "Ok",
-                                stem_capnp::Status::StaleEpoch => "StaleEpoch",
-                                stem_capnp::Status::Unauthorized => "Unauthorized",
-                                stem_capnp::Status::InternalError => "InternalError",
-                            };
-                            println!("issued_seq={} current_seq={} status={}", issued_seq, current_seq, status_str);
-                            assert_eq!(status, stem_capnp::Status::StaleEpoch);
+                            match p.send().promise.await {
+                                Ok(_) => panic!("poll_status should fail with RPC error after epoch advance"),
+                                Err(e) => {
+                                    println!("issued_seq={} current_seq={} poll_error={}", issued_seq, current_seq, e);
+                                    assert!(e.to_string().contains("staleEpoch"));
+                                }
+                            }
 
                             let bootstrap = membrane.as_ref().unwrap();
                             let mut graft_req2 = bootstrap.graft_request();
@@ -201,7 +198,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                             let status2 = r2.get()?.get_status()?;
                             let status_str = match status2 {
                                 stem_capnp::Status::Ok => "Ok",
-                                stem_capnp::Status::StaleEpoch => "StaleEpoch",
                                 stem_capnp::Status::Unauthorized => "Unauthorized",
                                 stem_capnp::Status::InternalError => "InternalError",
                             };
@@ -238,7 +234,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                             let status = r.get()?.get_status()?;
                             let status_str = match status {
                                 stem_capnp::Status::Ok => "Ok",
-                                stem_capnp::Status::StaleEpoch => "StaleEpoch",
                                 stem_capnp::Status::Unauthorized => "Unauthorized",
                                 stem_capnp::Status::InternalError => "InternalError",
                             };

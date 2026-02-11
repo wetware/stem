@@ -42,97 +42,49 @@ impl MembraneServer {
 }
 
 impl stem_capnp::membrane::Server for MembraneServer {
-    fn current_epoch(
-        &mut self,
-        _: stem_capnp::membrane::CurrentEpochParams,
-        mut results: stem_capnp::membrane::CurrentEpochResults,
-    ) -> Promise<(), Error> {
-        let epoch = self.get_current_epoch();
-        let results_builder = results.get();
-        let mut epoch_builder = results_builder.init_epoch();
-        match fill_epoch_builder(&mut epoch_builder, &epoch) {
-            Ok(()) => Promise::ok(()),
-            Err(e) => Promise::err(e),
-        }
-    }
-
-    fn watch_epoch(
-        &mut self,
-        _: stem_capnp::membrane::WatchEpochParams,
-        mut results: stem_capnp::membrane::WatchEpochResults,
-    ) -> Promise<(), Error> {
-        let watcher = WatcherServer {
-            receiver: self.receiver.clone(),
-        };
-        results.get().set_watcher(new_client(watcher));
-        Promise::ok(())
-    }
-
     fn graft(
         &mut self,
         _params: stem_capnp::membrane::GraftParams,
         mut results: stem_capnp::membrane::GraftResults,
     ) -> Promise<(), Error> {
         let epoch = self.get_current_epoch();
-        let mut results_builder = results.get();
-        let mut session_builder = results_builder.reborrow().init_session();
+        let mut session_builder = results.get().init_session();
         if fill_epoch_builder(&mut session_builder.reborrow().init_issued_epoch(), &epoch).is_err() {
             return Promise::err(Error::failed("fill issued epoch".to_string()));
         }
-        let poller = StatusPollerServer {
-            issuance_epoch: epoch.clone(),
+        let guard = EpochGuard {
+            issued_seq: epoch.seq,
             receiver: self.receiver.clone(),
         };
+        let poller = StatusPollerServer { guard };
         session_builder.set_status_poller(new_client(poller));
-        let mut epoch_builder = results_builder.init_epoch();
-        match fill_epoch_builder(&mut epoch_builder, &epoch) {
-            Ok(()) => Promise::ok(()),
-            Err(e) => Promise::err(e),
-        }
+        Promise::ok(())
     }
 }
 
-/// Watcher server: blocks on next() until the adopted epoch changes.
-struct WatcherServer {
+/// Guard that checks whether the epoch under which a capability was issued is
+/// still current. Shared by all session-scoped capability servers so that
+/// every RPC hard-fails once the epoch advances.
+#[derive(Clone)]
+struct EpochGuard {
+    issued_seq: u64,
     receiver: watch::Receiver<Epoch>,
 }
 
-impl stem_capnp::watcher::Server for WatcherServer {
-    fn next(
-        &mut self,
-        _: stem_capnp::watcher::NextParams,
-        mut results: stem_capnp::watcher::NextResults,
-    ) -> Promise<(), Error> {
-        let mut receiver = self.receiver.clone();
-        Promise::from_future(async move {
-            receiver
-                .changed()
-                .await
-                .map_err(|_| Error::failed("epoch watcher closed".to_string()))?;
-            let epoch = receiver.borrow().clone();
-            let results_builder = results.get();
-            let mut epoch_builder = results_builder.init_epoch();
-            fill_epoch_builder(&mut epoch_builder, &epoch)?;
-            Ok(())
-        })
-    }
-}
-
-/// StatusPoller server: epoch-scoped; pollStatus returns StaleEpoch when seq differs.
-/// Status::InternalError is reserved for implementation failures; do not use it for epoch staleness.
-struct StatusPollerServer {
-    issuance_epoch: Epoch,
-    receiver: watch::Receiver<Epoch>,
-}
-
-impl StatusPollerServer {
-    fn check_epoch(&self) -> Result<(), Error> {
+impl EpochGuard {
+    fn check(&self) -> Result<(), Error> {
         let current = self.receiver.borrow();
-        if current.seq != self.issuance_epoch.seq {
+        if current.seq != self.issued_seq {
             return Err(Error::failed("staleEpoch: session epoch no longer current".to_string()));
         }
         Ok(())
     }
+}
+
+/// StatusPoller server: epoch-scoped; pollStatus returns an RPC error when the
+/// epoch has advanced past the one under which this capability was issued.
+struct StatusPollerServer {
+    guard: EpochGuard,
 }
 
 impl stem_capnp::status_poller::Server for StatusPollerServer {
@@ -141,11 +93,10 @@ impl stem_capnp::status_poller::Server for StatusPollerServer {
         _: stem_capnp::status_poller::PollStatusParams,
         mut results: stem_capnp::status_poller::PollStatusResults,
     ) -> Promise<(), Error> {
-        let status = match self.check_epoch() {
-            Ok(()) => stem_capnp::Status::Ok,
-            Err(_) => stem_capnp::Status::StaleEpoch,
-        };
-        results.get().set_status(status);
+        if let Err(e) = self.guard.check() {
+            return Promise::err(e);
+        }
+        results.get().set_status(stem_capnp::Status::Ok);
         Promise::ok(())
     }
 }
@@ -168,24 +119,15 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn membrane_current_epoch_returns_watch_value() {
-        let (_tx, rx) = watch::channel(epoch(1, b"head1", 100));
-        let server = MembraneServer::new(rx);
-        assert_eq!(server.get_current_epoch().seq, 1);
-        assert_eq!(server.get_current_epoch().head, b"head1");
-        assert_eq!(server.get_current_epoch().adopted_block, 100);
-    }
-
-    #[tokio::test]
     async fn status_poller_check_epoch_fails_when_seq_differs() {
         let (tx, rx) = watch::channel(epoch(1, b"head1", 100));
-        let poller = StatusPollerServer {
-            issuance_epoch: epoch(1, b"head1", 100),
+        let guard = EpochGuard {
+            issued_seq: 1,
             receiver: rx.clone(),
         };
-        assert!(poller.check_epoch().is_ok());
+        assert!(guard.check().is_ok());
         tx.send(epoch(2, b"head2", 101)).unwrap();
-        let res = poller.check_epoch();
+        let res = guard.check();
         assert!(res.is_err());
         assert!(res.unwrap_err().to_string().contains("staleEpoch"));
     }

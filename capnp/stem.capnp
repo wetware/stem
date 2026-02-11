@@ -8,19 +8,13 @@ struct Epoch {
 
 enum Status {
   ok @0;             # Operation succeeded under the current epoch.
-  staleEpoch @1;     # Session was minted under a different epoch.
-  unauthorized @2;   # Caller not authorized under current policy.
-  internalError @3;  # Unexpected internal failure.
+  unauthorized @1;   # Caller not authorized under current policy.
+  internalError @2;  # Unexpected internal failure.
 }
 
 interface Signer {
   sign @0 (domain :Text, nonce :UInt64) -> (sig :Data);
   # Sign an arbitrary nonce under a given domain string.
-}
-
-interface Watcher {
-  next @0 () -> (epoch :Epoch);
-  # Blocks until the adopted epoch changes.
 }
 
 interface StatusPoller {
@@ -36,12 +30,6 @@ struct Session {
 }
 
 interface Membrane {
-  currentEpoch @0 () -> (epoch :Epoch);
-  # Returns the currently adopted epoch (read-only, safe).
-
-  watchEpoch @1 () -> (watcher :Watcher);
-  # Returns a watcher capability for observing epoch changes.
-
-  graft @2 (signer :Signer) -> (session :Session, epoch :Epoch);
+  graft @0 (signer :Signer) -> (session :Session);
   # Graft a signer to the membrane, establishing an epoch-scoped session.
 }

@@ -119,14 +119,13 @@ async fn test_membrane_graft_poll_status_against_anvil() {
 
     tx.send(epoch2).unwrap();
     let poll_req2 = poller.poll_status_request();
-    let status2 = {
-        let r = poll_req2.send().promise.await.expect("poll_status again RPC");
-        r.get().expect("poll_status again results").get_status().expect("status")
-    };
-    assert_eq!(status2, stem_capnp::Status::StaleEpoch, "session should be stale after epoch advance");
+    match poll_req2.send().promise.await {
+        Ok(_) => panic!("poll_status should fail with RPC error after epoch advance"),
+        Err(e) => assert!(e.to_string().contains("staleEpoch"), "error should mention staleEpoch, got: {e}"),
+    }
 }
 
-/// No-chain regression test: same poller returns StaleEpoch after epoch advance, then re-graft returns Ok.
+/// No-chain regression test: poller fails with RPC error after epoch advance, then re-graft returns Ok.
 #[tokio::test]
 async fn test_membrane_stale_epoch_then_recovery_no_chain() {
     let epoch1 = Epoch {
@@ -160,15 +159,10 @@ async fn test_membrane_stale_epoch_then_recovery_no_chain() {
 
     tx.send(epoch2).unwrap();
     let poll_req2 = poller.poll_status_request();
-    let status2 = {
-        let r = poll_req2.send().promise.await.expect("poll_status again RPC");
-        r.get().expect("poll_status again results").get_status().expect("status")
-    };
-    assert_eq!(
-        status2,
-        stem_capnp::Status::StaleEpoch,
-        "same poller must return StaleEpoch after epoch advance"
-    );
+    match poll_req2.send().promise.await {
+        Ok(_) => panic!("poll_status should fail with RPC error after epoch advance"),
+        Err(e) => assert!(e.to_string().contains("staleEpoch"), "error should mention staleEpoch, got: {e}"),
+    }
 
     let mut graft_req2 = membrane.graft_request();
     graft_req2.get().set_signer(signer_client.clone());
