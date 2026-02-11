@@ -9,7 +9,7 @@ description = "Off-chain Stem runtime: head-following, finalization, and caching
 capnpc = "0.19"
 
 [dependencies]
-alloy = { version = "0.4", features = ["rpc-types"] }
+alloy = { version = "0.4", features = ["rpc-types", "sol-types"] }
 capnp = "0.19"
 ciborium = "0.2"
 anyhow = "1"
@@ -28,6 +28,8 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 capnp-rpc = "0.19"
 
 [dev-dependencies]
+k256 = { version = "0.13", features = ["ecdsa"] }
+rlp = "0.5"
 tokio-test = "0.4"
 
 [[example]]

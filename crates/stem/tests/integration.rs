@@ -28,9 +28,9 @@ async fn test_indexer_against_anvil() {
     let mut contract_address = [0u8; 20];
     contract_address.copy_from_slice(&addr_bytes);
 
-    set_head(repo_root, &rpc_url, &contract_addr, "0x697066732f2f6669727374").expect("setHead 1");
-    set_head(repo_root, &rpc_url, &contract_addr, "0x69706c642f2f7365636f6e64").expect("setHead 2");
-    set_head(repo_root, &rpc_url, &contract_addr, "0x626c6f622f2f7468697264").expect("setHead 3");
+    set_head(repo_root, &rpc_url, &contract_addr, "setHead(bytes)", "0x697066732f2f6669727374", None).expect("setHead 1");
+    set_head(repo_root, &rpc_url, &contract_addr, "setHead(bytes)", "0x69706c642f2f7365636f6e64", None).expect("setHead 2");
+    set_head(repo_root, &rpc_url, &contract_addr, "setHead(bytes)", "0x626c6f622f2f7468697264", None).expect("setHead 3");
 
     let ws_url = rpc_url.replace("http://", "ws://").replace("https://", "wss://");
     let config = IndexerConfig {

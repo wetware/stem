@@ -19,3 +19,9 @@ docs/
 # Coverage
 *.profraw
 *.profdata
+
+# macOS
+.DS_Store
+
+# Editor/IDE
+.cursor/

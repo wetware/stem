@@ -10,7 +10,7 @@
 mod common;
 
 use anyhow::{Context, Result};
-use common::{deploy_stem, set_head, spawn_anvil};
+use common::{deploy_stem, evm_revert, evm_snapshot, set_head, spawn_anvil};
 use serde_json::{json, Value};
 use stem::abi::{decode_head_return, decode_log_to_observed, CurrentHead, HEAD_SELECTOR, HEAD_UPDATED_TOPIC0};
 use std::path::Path;
@@ -28,24 +28,6 @@ async fn http_json_rpc(client: &reqwest::Client, url: &str, method: &str, params
         anyhow::bail!("RPC error: {}", err);
     }
     v.get("result").cloned().ok_or_else(|| anyhow::anyhow!("Missing result"))
-}
-
-async fn evm_snapshot(client: &reqwest::Client, http_url: &str) -> Result<String> {
-    let result = http_json_rpc(client, http_url, "evm_snapshot", json!([]), 10).await?;
-    let id = result.as_str().ok_or_else(|| anyhow::anyhow!("snapshot id not string"))?;
-    Ok(id.to_string())
-}
-
-async fn evm_revert(client: &reqwest::Client, http_url: &str, snapshot_id: &str) -> Result<bool> {
-    let result = http_json_rpc(
-        client,
-        http_url,
-        "evm_revert",
-        json!([snapshot_id]),
-        11,
-    )
-    .await?;
-    result.as_bool().ok_or_else(|| anyhow::anyhow!("evm_revert result not bool"))
 }
 
 async fn eth_get_logs(
@@ -111,14 +93,17 @@ async fn test_reorg_naive_observer_mismatch() {
     let mut contract_address = [0u8; 20];
     contract_address.copy_from_slice(&addr_bytes);
 
-    let client = reqwest::Client::new();
+    let client = reqwest::Client::builder()
+        .no_proxy()
+        .build()
+        .expect("reqwest client");
 
     // Snapshot state after deploy (seq 0, initial cid). We will revert to this later.
-    let snapshot_id = evm_snapshot(&client, &rpc_url).await.expect("evm_snapshot");
+    let snapshot_id = evm_snapshot(&rpc_url).await.expect("evm_snapshot");
 
     // Emit HeadUpdated: setHead("cid-1")
     let cid_hex = "0x6369642d31"; // "cid-1" in hex
-    set_head(repo_root, &rpc_url, &contract_addr, cid_hex).expect("setHead");
+    set_head(repo_root, &rpc_url, &contract_addr, "setHead(bytes)", cid_hex, None).expect("setHead");
 
     // Naive observation: poll eth_getLogs, decode, update in-memory applied_head (no reorg safety).
     let from_block = 1u64;
@@ -141,7 +126,7 @@ async fn test_reorg_naive_observer_mismatch() {
     assert_eq!(applied_head.cid.as_slice(), b"cid-1");
 
     // Revert chain so the setHead block is no longer canonical (simulates reorg).
-    let reverted = evm_revert(&client, &rpc_url, &snapshot_id).await.expect("evm_revert");
+    let reverted = evm_revert(&rpc_url, &snapshot_id).await.expect("evm_revert");
     assert!(reverted, "evm_revert should return true");
 
     // Post-revert canonical checks: eth_getLogs should not contain our tx; stem.head() should be initial.
@@ -151,8 +136,7 @@ async fn test_reorg_naive_observer_mismatch() {
     let has_our_tx = logs_after.iter().any(|log| {
         log.get("transactionHash")
             .and_then(|h| h.as_str())
-            .map(|h| hex::decode(h.strip_prefix("0x").unwrap_or(h)).ok())
-            .flatten()
+            .and_then(|h| hex::decode(h.strip_prefix("0x").unwrap_or(h)).ok())
             .as_ref()
             .map(|b| b.as_slice() == observed_tx_hash)
             .unwrap_or(false)

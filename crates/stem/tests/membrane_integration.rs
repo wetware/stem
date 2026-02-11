@@ -54,7 +54,7 @@ async fn test_membrane_graft_poll_status_against_anvil() {
     let mut contract_address = [0u8; 20];
     contract_address.copy_from_slice(&addr_bytes);
 
-    set_head(repo_root, &rpc_url, &contract_addr, "0x697066732f2f6669727374").expect("setHead 1");
+    set_head(repo_root, &rpc_url, &contract_addr, "setHead(bytes)", "0x697066732f2f6669727374", None).expect("setHead 1");
 
     let ws_url = rpc_url.replace("http://", "ws://").replace("https://", "wss://");
     let config = IndexerConfig {

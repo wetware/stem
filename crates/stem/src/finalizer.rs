@@ -172,7 +172,10 @@ impl FinalizerBuilder {
         let contract_address = self
             .contract_address
             .ok_or_else(|| FinalizerError::Decode("contract_address required".into()))?;
-        let http_client = reqwest::Client::new();
+        let http_client = reqwest::Client::builder()
+            .no_proxy()
+            .build()
+            .map_err(|e| FinalizerError::Decode(e.to_string()))?;
         Ok(Finalizer {
             strategy,
             http_client,

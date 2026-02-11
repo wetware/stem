@@ -1,8 +1,9 @@
 //! ABI types and decoding for the Stem contract.
 //!
 //! HeadUpdated event and head() view. Decode from JSON-RPC log shape and eth_call return.
-//! Option A: no CIDKind/hint; head() returns (uint64, bytes), event HeadUpdated(seq, writer, cid, cidHash).
+//! Uses alloy sol-types for ABI decoding; head() returns (uint64, bytes), event HeadUpdated(seq, writer, cid, cidHash).
 
+use alloy::sol_types::SolType;
 use anyhow::{Context, Result};
 use serde_json::Value;
 
@@ -83,15 +84,8 @@ pub fn decode_log_to_observed(log_value: &Value) -> Result<HeadUpdatedObserved> 
             .as_str()
             .ok_or_else(|| anyhow::anyhow!("topic3 not str"))?,
     )?;
-    // Option A: data is single bytes: offset (32 bytes) then at offset: length (32) then cid
-    if data.len() < 64 {
-        anyhow::bail!("Data too short for bytes");
-    }
-    let len = u32::from_be_bytes(data[60..64].try_into().unwrap()) as usize;
-    if data.len() < 64 + len {
-        anyhow::bail!("Data too short for cid len {}", len);
-    }
-    let cid = data[64..64 + len].to_vec();
+    // Event data: single ABI-encoded `bytes`. Try alloy first; fall back to manual when contract uses non-standard offset (e.g. 64).
+    let cid = decode_event_data_bytes(&data).context("decode event data bytes")?;
 
     Ok(HeadUpdatedObserved {
         seq,
@@ -104,13 +98,26 @@ pub fn decode_log_to_observed(log_value: &Value) -> Result<HeadUpdatedObserved> 
     })
 }
 
-/// Decode head() return data (eth_call result): (uint64, bytes) ABI.
+/// Decode head() return data (eth_call result): (uint64, bytes) ABI via alloy sol-types.
+/// Falls back to manual decode if the contract uses a non-standard offset (e.g. 64 instead of 32).
 pub fn decode_head_return(data: &[u8]) -> Result<CurrentHead> {
+    type HeadReturn = (alloy::sol_types::sol_data::Uint<64>, alloy::sol_types::sol_data::Bytes);
+    if let Ok((seq, cid)) = HeadReturn::abi_decode(data, false) {
+        return Ok(CurrentHead {
+            seq,
+            cid: cid.to_vec(),
+        });
+    }
+    decode_head_return_manual(data)
+}
+
+/// Manual (uint64, bytes) decode for contracts that use offset 64 in word1 (e.g. some Solidity layouts).
+fn decode_head_return_manual(data: &[u8]) -> Result<CurrentHead> {
     if data.len() < 64 {
         anyhow::bail!("head() return too short");
     }
     let seq = u64::from_be_bytes(data[24..32].try_into().unwrap());
-    let cid_offset = u32::from_be_bytes(data[32..36].try_into().unwrap()) as usize;
+    let cid_offset = u32::from_be_bytes(data[60..64].try_into().unwrap()) as usize;
     if data.len() < cid_offset + 32 {
         anyhow::bail!("head() return too short for cid offset");
     }
@@ -120,6 +127,31 @@ pub fn decode_head_return(data: &[u8]) -> Result<CurrentHead> {
     }
     let cid = data[cid_offset + 32..cid_offset + 32 + cid_len].to_vec();
     Ok(CurrentHead { seq, cid })
+}
+
+/// Decode event data (single ABI `bytes`). Uses alloy when layout is standard; falls back to manual when offset != 32 (e.g. 64).
+fn decode_event_data_bytes(data: &[u8]) -> Result<Vec<u8>> {
+    use alloy::sol_types::sol_data::Bytes;
+    if let Ok(b) = Bytes::abi_decode(data, false) {
+        return Ok(b.to_vec());
+    }
+    decode_event_data_bytes_manual(data)
+}
+
+/// Manual decode of ABI-encoded single `bytes`: reads offset from first word (bytes 28..32), then length + payload.
+fn decode_event_data_bytes_manual(data: &[u8]) -> Result<Vec<u8>> {
+    if data.len() < 32 {
+        anyhow::bail!("event data too short");
+    }
+    let cid_offset = u32::from_be_bytes(data[28..32].try_into().unwrap()) as usize;
+    if data.len() < cid_offset + 32 {
+        anyhow::bail!("event data too short for cid offset");
+    }
+    let len = u32::from_be_bytes(data[cid_offset + 28..cid_offset + 32].try_into().unwrap()) as usize;
+    if data.len() < cid_offset + 32 + len {
+        anyhow::bail!("event data too short for cid len {}", len);
+    }
+    Ok(data[cid_offset + 32..cid_offset + 32 + len].to_vec())
 }
 
 fn parse_hex_u64(s: &str) -> Result<u64> {
@@ -160,35 +192,52 @@ fn parse_hex_bytes_20(s: &str) -> Result<[u8; 20]> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use alloy::sol_types::SolType;
 
     #[test]
     fn topic0_constant() {
         assert_eq!(HEAD_UPDATED_TOPIC0, [0x85, 0xf2, 0xcb, 0x2e]);
     }
 
-    /// Minimal ABI-encoded head() return: (uint64 seq, bytes cid) with seq=0, cid=[].
+    type HeadReturn = (alloy::sol_types::sol_data::Uint<64>, alloy::sol_types::sol_data::Bytes);
+
     #[test]
     fn decode_head_return_minimal() {
-        let mut data = [0u8; 96];
-        data[24..32].copy_from_slice(&0u64.to_be_bytes()); // seq
-        data[32..36].copy_from_slice(&64u32.to_be_bytes()); // offset to cid
+        let data = HeadReturn::abi_encode(&(0u64, alloy::primitives::Bytes::new()));
         let head = decode_head_return(&data).unwrap();
         assert_eq!(head.seq, 0);
         assert!(head.cid.is_empty());
     }
 
-    /// Option A: (uint64, bytes); cid at offset 64, length at 92..96, cid bytes at 96..
     #[test]
     fn decode_head_return_with_cid() {
         let seq: u64 = 42;
         let cid: &[u8] = b"QmFoo";
-        let mut data = vec![0u8; 96 + cid.len()];
-        data[24..32].copy_from_slice(&seq.to_be_bytes());
-        data[32..36].copy_from_slice(&64u32.to_be_bytes()); // offset to cid
-        data[92..96].copy_from_slice(&(cid.len() as u32).to_be_bytes()); // length at 64+28..64+32
-        data[96..96 + cid.len()].copy_from_slice(cid);
+        let data = HeadReturn::abi_encode(&(seq, alloy::primitives::Bytes::from(cid)));
         let head = decode_head_return(&data).unwrap();
         assert_eq!(head.seq, 42);
-        assert_eq!(head.cid, cid);
+        assert_eq!(head.cid.as_slice(), cid);
+    }
+
+    #[test]
+    fn decode_event_data_bytes_standard() {
+        use alloy::sol_types::sol_data::Bytes;
+        let cid: &[u8] = b"cid-1";
+        let data = Bytes::abi_encode(&alloy::primitives::Bytes::from(cid));
+        let decoded = super::decode_event_data_bytes(&data).unwrap();
+        assert_eq!(decoded.as_slice(), cid);
+    }
+
+    #[test]
+    fn decode_event_data_bytes_offset64() {
+        // Manual layout when contract emits offset 64: word0 = 64, then at 64: length (32 bytes) + cid.
+        let cid: &[u8] = b"cid-1";
+        let mut data = vec![0u8; 32];
+        data[28..32].copy_from_slice(&64u32.to_be_bytes());
+        data.resize(64 + 32 + cid.len(), 0);
+        data[64 + 28..64 + 32].copy_from_slice(&(cid.len() as u32).to_be_bytes());
+        data[64 + 32..64 + 32 + cid.len()].copy_from_slice(cid);
+        let decoded = super::decode_event_data_bytes(&data).unwrap();
+        assert_eq!(decoded.as_slice(), cid);
     }
 }

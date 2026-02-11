@@ -6,7 +6,7 @@
 //! for reorg-safe, confirmation-based output.
 
 use crate::abi::{
-    decode_head_return, decode_log_to_observed, CurrentHead, HeadUpdatedObserved, HEAD_SELECTOR,
+    decode_log_to_observed, CurrentHead, HeadUpdatedObserved,
     HEAD_UPDATED_TOPIC0,
 };
 use crate::config::IndexerConfig;
@@ -94,7 +94,10 @@ async fn eth_block_number(client: &reqwest::Client, http_url: &str) -> Result<u6
 /// Returns the current chain tip (latest block number) via JSON-RPC eth_blockNumber.
 /// Useful for starting an indexer from "now" (live-only, no backfill of older blocks).
 pub async fn current_block_number(http_url: &str) -> Result<u64> {
-    let client = reqwest::Client::new();
+    let client = reqwest::Client::builder()
+        .no_proxy()
+        .build()
+        .expect("reqwest client");
     eth_block_number(&client, http_url).await
 }
 
@@ -106,26 +109,6 @@ async fn eth_get_logs(
     let result = http_json_rpc(client, http_url, "eth_getLogs", json!([filter]), 2).await?;
     let arr = result.as_array().ok_or_else(|| anyhow::anyhow!("getLogs not array"))?;
     Ok(arr.clone())
-}
-
-async fn eth_call(
-    client: &reqwest::Client,
-    http_url: &str,
-    to: &[u8; 20],
-    calldata: &[u8],
-) -> Result<Vec<u8>> {
-    let params = json!([{
-        "to": format!("0x{}", hex::encode(to)),
-        "data": format!("0x{}", hex::encode(calldata)),
-    }, "latest"]);
-    let result = http_json_rpc(client, http_url, "eth_call", params, 3).await?;
-    let s = result.as_str().ok_or_else(|| anyhow::anyhow!("eth_call result not string"))?;
-    let bytes = hex::decode(s.strip_prefix("0x").unwrap_or(s)).context("decode eth_call result")?;
-    Ok(bytes)
-}
-
-fn head_calldata() -> Vec<u8> {
-    HEAD_SELECTOR.to_vec()
 }
 
 /// Stem indexer: follows HeadUpdated logs, backfills via HTTP, maintains current HEAD.
@@ -158,7 +141,10 @@ impl StemIndexer {
     /// Run the indexer (blocking on the async loop). Call from a spawned task.
     pub async fn run(self: Arc<Self>) -> Result<()> {
         let config = &self.config;
-        let http_client = reqwest::Client::new();
+        let http_client = reqwest::Client::builder()
+            .no_proxy()
+            .build()
+            .expect("reqwest client");
         let mut cursor = Cursor::new(config.start_block.saturating_sub(1));
         let reconnection = config.reconnection.clone();
 
@@ -192,27 +178,9 @@ async fn run_once(
     cursor: &mut Cursor,
     config: &IndexerConfig,
 ) -> Result<()> {
-    let from_block = cursor.last_processed_block + 1;
-    let tip = eth_block_number(http_client, &config.http_url).await?;
-    if from_block <= tip {
-        backfill(
-            http_client,
-            &config.http_url,
-            &config.contract_address,
-            from_block,
-            tip,
-            config.getlogs_max_range,
-            &indexer.event_tx,
-            &indexer.current_head,
-        ).await?;
-        cursor.last_processed_block = tip;
-    }
-
-    let ws_url = config
-        .http_url
-        .replace("http://", "ws://")
-        .replace("https://", "wss://");
-    let (ws_stream, _) = connect_async(&ws_url).await.context("WS connect")?;
+    // Subscribe first so WS buffers events while backfill runs (no missed-event gap).
+    let ws_url = &config.ws_url;
+    let (ws_stream, _) = connect_async(ws_url).await.context("WS connect")?;
     let (mut ws_sender, mut ws_receiver) = ws_stream.split();
 
     let logs_id = 1u64;
@@ -277,13 +245,22 @@ async fn run_once(
     };
     let _ = sub_id;
 
-    fetch_and_set_head(
-        http_client,
-        &config.http_url,
-        &config.contract_address,
-        &indexer.current_head,
-        head_calldata().as_slice(),
-    ).await;
+    // Backfill after subscribe so the WS stream buffers any events arriving in between.
+    let from_block = cursor.last_processed_block + 1;
+    let tip = eth_block_number(http_client, &config.http_url).await?;
+    if from_block <= tip {
+        backfill(
+            http_client,
+            &config.http_url,
+            &config.contract_address,
+            from_block,
+            tip,
+            config.getlogs_max_range,
+            &indexer.event_tx,
+            &indexer.current_head,
+        ).await?;
+        cursor.last_processed_block = tip;
+    }
 
     while let Some(msg) = ws_receiver.next().await {
         let text = match msg.map_err(|e| anyhow::anyhow!("ws: {}", e))? {
@@ -450,26 +427,3 @@ async fn set_current_head_if_newer(
     }
 }
 
-async fn fetch_and_set_head(
-    client: &reqwest::Client,
-    http_url: &str,
-    contract_address: &[u8; 20],
-    current_head: &Arc<RwLock<Option<CurrentHead>>>,
-    calldata: &[u8],
-) {
-    let result = match eth_call(client, http_url, contract_address, calldata).await {
-        Ok(bytes) => bytes,
-        Err(e) => {
-            tracing::warn!(reason = %e, "eth_call head() failed");
-            return;
-        }
-    };
-    let head = match decode_head_return(&result) {
-        Ok(h) => h,
-        Err(e) => {
-            tracing::warn!(reason = %e, "decode head() failed");
-            return;
-        }
-    };
-    set_current_head_if_newer(current_head, head).await;
-}

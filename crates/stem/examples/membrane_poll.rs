@@ -167,7 +167,50 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         let epoch = finalized_to_epoch(&e);
                         let current_seq = epoch.seq;
 
-                        if epoch_tx.is_none() {
+                        if let Some(tx) = &epoch_tx {
+                            // New epoch adopted: send it, print epoch_advanced, poll same poller -> StaleEpoch, re-graft -> Ok.
+                            tx.send(epoch.clone()).ok();
+                            let old_seq = last_adopted_seq.unwrap_or(0);
+                            println!("epoch_advanced old_seq={} new_seq={}", old_seq, current_seq);
+
+                            let issued_seq = first_issued_seq.unwrap_or(0);
+                            let p = poller.as_ref().unwrap().poll_status_request();
+                            let r = p.send().promise.await?;
+                            let status = r.get()?.get_status()?;
+                            let status_str = match status {
+                                stem_capnp::Status::Ok => "Ok",
+                                stem_capnp::Status::StaleEpoch => "StaleEpoch",
+                                stem_capnp::Status::Unauthorized => "Unauthorized",
+                                stem_capnp::Status::InternalError => "InternalError",
+                            };
+                            println!("issued_seq={} current_seq={} status={}", issued_seq, current_seq, status_str);
+                            assert_eq!(status, stem_capnp::Status::StaleEpoch);
+
+                            let bootstrap = membrane.as_ref().unwrap();
+                            let mut graft_req2 = bootstrap.graft_request();
+                            graft_req2.get().set_signer(signer_client.clone());
+                            let graft_rpc2 = graft_req2.send().promise.await?;
+                            let graft_res2 = graft_rpc2.get()?;
+                            let session2 = graft_res2.get_session()?;
+                            let new_issued_seq = session2.get_issued_epoch()?.get_seq();
+                            first_issued_seq = Some(new_issued_seq);
+                            poller = Some(session2.get_status_poller()?);
+
+                            let p2 = poller.as_ref().unwrap().poll_status_request();
+                            let r2 = p2.send().promise.await?;
+                            let status2 = r2.get()?.get_status()?;
+                            let status_str = match status2 {
+                                stem_capnp::Status::Ok => "Ok",
+                                stem_capnp::Status::StaleEpoch => "StaleEpoch",
+                                stem_capnp::Status::Unauthorized => "Unauthorized",
+                                stem_capnp::Status::InternalError => "InternalError",
+                            };
+                            println!("issued_seq={} current_seq={} status={}", new_issued_seq, current_seq, status_str);
+                            assert_eq!(status2, stem_capnp::Status::Ok);
+
+                            last_adopted_seq = Some(current_seq);
+                            demo_done = true;
+                        } else {
                             // First finalized event: create channel, then membrane, graft, poll.
                             let (tx, rx) = watch::channel(epoch.clone());
                             epoch_tx = Some(tx);
@@ -215,49 +258,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 );
                                 printed_cast_command = true;
                             }
-                        } else {
-                            // New epoch adopted: send it, print epoch_advanced, poll same poller -> StaleEpoch, re-graft -> Ok.
-                            epoch_tx.as_ref().unwrap().send(epoch.clone()).ok();
-                            let old_seq = last_adopted_seq.unwrap_or(0);
-                            println!("epoch_advanced old_seq={} new_seq={}", old_seq, current_seq);
-
-                            let issued_seq = first_issued_seq.unwrap_or(0);
-                            let p = poller.as_ref().unwrap().poll_status_request();
-                            let r = p.send().promise.await?;
-                            let status = r.get()?.get_status()?;
-                            let status_str = match status {
-                                stem_capnp::Status::Ok => "Ok",
-                                stem_capnp::Status::StaleEpoch => "StaleEpoch",
-                                stem_capnp::Status::Unauthorized => "Unauthorized",
-                                stem_capnp::Status::InternalError => "InternalError",
-                            };
-                            println!("issued_seq={} current_seq={} status={}", issued_seq, current_seq, status_str);
-                            assert_eq!(status, stem_capnp::Status::StaleEpoch);
-
-                            let bootstrap = membrane.as_ref().unwrap();
-                            let mut graft_req2 = bootstrap.graft_request();
-                            graft_req2.get().set_signer(signer_client.clone());
-                            let graft_rpc2 = graft_req2.send().promise.await?;
-                            let graft_res2 = graft_rpc2.get()?;
-                            let session2 = graft_res2.get_session()?;
-                            let new_issued_seq = session2.get_issued_epoch()?.get_seq();
-                            first_issued_seq = Some(new_issued_seq);
-                            poller = Some(session2.get_status_poller()?);
-
-                            let p2 = poller.as_ref().unwrap().poll_status_request();
-                            let r2 = p2.send().promise.await?;
-                            let status2 = r2.get()?.get_status()?;
-                            let status_str = match status2 {
-                                stem_capnp::Status::Ok => "Ok",
-                                stem_capnp::Status::StaleEpoch => "StaleEpoch",
-                                stem_capnp::Status::Unauthorized => "Unauthorized",
-                                stem_capnp::Status::InternalError => "InternalError",
-                            };
-                            println!("issued_seq={} current_seq={} status={}", new_issued_seq, current_seq, status_str);
-                            assert_eq!(status2, stem_capnp::Status::Ok);
-
-                            last_adopted_seq = Some(current_seq);
-                            demo_done = true;
                         }
                     }
                 }
