@@ -11,7 +11,6 @@ capnpc = "0.19"
 [dependencies]
 alloy = { version = "0.4", features = ["rpc-types", "sol-types"] }
 capnp = "0.19"
-ciborium = "0.2"
 anyhow = "1"
 futures-util = "0.3"
 hex = "0.4"
