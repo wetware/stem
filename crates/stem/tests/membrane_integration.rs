@@ -17,9 +17,10 @@ use tracing_subscriber::EnvFilter;
 /// Stub Signer for graft: returns empty signature (local test only).
 struct StubSigner;
 
+#[allow(refining_impl_trait)]
 impl stem_capnp::signer::Server for StubSigner {
     fn sign(
-        &mut self,
+        self: capnp::capability::Rc<Self>,
         _: stem_capnp::signer::SignParams,
         mut results: stem_capnp::signer::SignResults,
     ) -> capnp::capability::Promise<(), capnp::Error> {

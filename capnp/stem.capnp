@@ -21,15 +21,18 @@ interface StatusPoller {
   pollStatus @0 () -> (status :Status);
 }
 
-struct Session {
+struct Session(Extension) {
   issuedEpoch @0 :Epoch;
   # Epoch under which this session was minted.
 
   statusPoller @1 :StatusPoller;
   # Capability for polling session status. Can be withheld (client receives null capability).
+
+  extension @2 :Extension;
+  # Platform-specific capabilities scoped to this session.
 }
 
-interface Membrane {
-  graft @0 (signer :Signer) -> (session :Session);
+interface Membrane(SessionExt) {
+  graft @0 (signer :Signer) -> (session :Session(SessionExt));
   # Graft a signer to the membrane, establishing an epoch-scoped session.
 }

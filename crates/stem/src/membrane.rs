@@ -15,7 +15,7 @@ pub struct Epoch {
     pub adopted_block: u64,
 }
 
-fn fill_epoch_builder(
+pub fn fill_epoch_builder(
     builder: &mut stem_capnp::epoch::Builder<'_>,
     epoch: &Epoch,
 ) -> Result<(), Error> {
@@ -26,14 +26,79 @@ fn fill_epoch_builder(
     Ok(())
 }
 
-/// Membrane server: stable across epochs, backed by a watch receiver for the adopted epoch.
-pub struct MembraneServer {
-    receiver: watch::Receiver<Epoch>,
+/// Guard that checks whether the epoch under which a capability was issued is
+/// still current. Shared by all session-scoped capability servers so that
+/// every RPC hard-fails once the epoch advances.
+#[derive(Clone)]
+pub struct EpochGuard {
+    pub issued_seq: u64,
+    pub receiver: watch::Receiver<Epoch>,
 }
 
-impl MembraneServer {
-    pub fn new(receiver: watch::Receiver<Epoch>) -> Self {
-        Self { receiver }
+impl EpochGuard {
+    pub fn check(&self) -> Result<(), Error> {
+        let current = self.receiver.borrow();
+        if current.seq != self.issued_seq {
+            return Err(Error::failed("staleEpoch: session epoch no longer current".to_string()));
+        }
+        Ok(())
+    }
+}
+
+/// Callback trait for filling the session extension during graft.
+///
+/// Implementors receive the EpochGuard and a builder for the extension field,
+/// allowing platform-specific capabilities (e.g. Host, Executor) to be injected
+/// into the session.
+pub trait SessionExtensionBuilder<SessionExt>: 'static
+where
+    SessionExt: capnp::traits::Owned,
+{
+    fn build(
+        &self,
+        guard: &EpochGuard,
+        builder: <SessionExt as capnp::traits::Owned>::Builder<'_>,
+    ) -> Result<(), Error>;
+}
+
+/// No-op extension builder for sessions without platform-specific capabilities.
+pub struct NoExtension;
+
+impl SessionExtensionBuilder<capnp::any_pointer::Owned> for NoExtension {
+    fn build(
+        &self,
+        _guard: &EpochGuard,
+        _builder: capnp::any_pointer::Builder<'_>,
+    ) -> Result<(), Error> {
+        Ok(())
+    }
+}
+
+/// Membrane server: stable across epochs, backed by a watch receiver for the adopted epoch.
+///
+/// Generic over `SessionExt`: the type parameter for the Session's extension field.
+/// The `ext_builder` callback fills the extension when a session is issued.
+pub struct MembraneServer<SessionExt, F>
+where
+    SessionExt: capnp::traits::Owned,
+    F: SessionExtensionBuilder<SessionExt>,
+{
+    receiver: watch::Receiver<Epoch>,
+    ext_builder: F,
+    _phantom: std::marker::PhantomData<SessionExt>,
+}
+
+impl<SessionExt, F> MembraneServer<SessionExt, F>
+where
+    SessionExt: capnp::traits::Owned,
+    F: SessionExtensionBuilder<SessionExt>,
+{
+    pub fn new(receiver: watch::Receiver<Epoch>, ext_builder: F) -> Self {
+        Self {
+            receiver,
+            ext_builder,
+            _phantom: std::marker::PhantomData,
+        }
     }
 
     fn get_current_epoch(&self) -> Epoch {
@@ -41,11 +106,16 @@ impl MembraneServer {
     }
 }
 
-impl stem_capnp::membrane::Server for MembraneServer {
+#[allow(refining_impl_trait)]
+impl<SessionExt, F> stem_capnp::membrane::Server<SessionExt> for MembraneServer<SessionExt, F>
+where
+    SessionExt: capnp::traits::Owned + 'static,
+    F: SessionExtensionBuilder<SessionExt>,
+{
     fn graft(
-        &mut self,
-        _params: stem_capnp::membrane::GraftParams,
-        mut results: stem_capnp::membrane::GraftResults,
+        self: capnp::capability::Rc<Self>,
+        _params: stem_capnp::membrane::GraftParams<SessionExt>,
+        mut results: stem_capnp::membrane::GraftResults<SessionExt>,
     ) -> Promise<(), Error> {
         let epoch = self.get_current_epoch();
         let mut session_builder = results.get().init_session();
@@ -56,40 +126,27 @@ impl stem_capnp::membrane::Server for MembraneServer {
             issued_seq: epoch.seq,
             receiver: self.receiver.clone(),
         };
-        let poller = StatusPollerServer { guard };
-        session_builder.set_status_poller(new_client(poller));
-        Promise::ok(())
-    }
-}
+        let poller = StatusPollerServer { guard: guard.clone() };
+        session_builder.reborrow().set_status_poller(new_client(poller));
 
-/// Guard that checks whether the epoch under which a capability was issued is
-/// still current. Shared by all session-scoped capability servers so that
-/// every RPC hard-fails once the epoch advances.
-#[derive(Clone)]
-struct EpochGuard {
-    issued_seq: u64,
-    receiver: watch::Receiver<Epoch>,
-}
-
-impl EpochGuard {
-    fn check(&self) -> Result<(), Error> {
-        let current = self.receiver.borrow();
-        if current.seq != self.issued_seq {
-            return Err(Error::failed("staleEpoch: session epoch no longer current".to_string()));
+        if let Err(e) = self.ext_builder.build(&guard, session_builder.reborrow().init_extension()) {
+            return Promise::err(e);
         }
-        Ok(())
+
+        Promise::ok(())
     }
 }
 
 /// StatusPoller server: epoch-scoped; pollStatus returns an RPC error when the
 /// epoch has advanced past the one under which this capability was issued.
-struct StatusPollerServer {
-    guard: EpochGuard,
+pub struct StatusPollerServer {
+    pub guard: EpochGuard,
 }
 
+#[allow(refining_impl_trait)]
 impl stem_capnp::status_poller::Server for StatusPollerServer {
     fn poll_status(
-        &mut self,
+        self: capnp::capability::Rc<Self>,
         _: stem_capnp::status_poller::PollStatusParams,
         mut results: stem_capnp::status_poller::PollStatusResults,
     ) -> Promise<(), Error> {
@@ -102,8 +159,12 @@ impl stem_capnp::status_poller::Server for StatusPollerServer {
 }
 
 /// Builds a Membrane capability client from a watch receiver (for use over capnp-rpc).
-pub fn membrane_client(receiver: watch::Receiver<Epoch>) -> stem_capnp::membrane::Client {
-    new_client(MembraneServer::new(receiver))
+///
+/// Uses `NoExtension` — the session's extension field is left empty.
+/// For platform-specific extensions (e.g. wetware Host+Executor), construct
+/// `MembraneServer::new(receiver, your_ext_builder)` directly.
+pub fn membrane_client(receiver: watch::Receiver<Epoch>) -> stem_capnp::membrane::Client<capnp::any_pointer::Owned> {
+    new_client(MembraneServer::new(receiver, NoExtension))
 }
 
 #[cfg(test)]
