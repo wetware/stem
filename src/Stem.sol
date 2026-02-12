@@ -20,10 +20,7 @@ contract Stem {
     /// @param cid     New head pointer bytes (binary CID or name bytes)
     /// @param cidHash keccak256(cid), for index-friendly filtering
     event HeadUpdated(
-        uint64 indexed seq,
-        address indexed writer,
-        bytes cid,
-        bytes32 indexed cidHash
+        uint64 indexed seq, address indexed writer, bytes cid, bytes32 indexed cidHash
     );
 
     error NotOwner();
@@ -60,7 +57,7 @@ contract Stem {
         if (keccak256(newCid) == keccak256(_cid)) revert NoChange();
 
         unchecked {
-            seq += 1;  // u64
+            seq += 1; // u64
         }
         _cid = newCid;
 
