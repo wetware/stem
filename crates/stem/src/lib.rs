@@ -25,7 +25,10 @@ pub use finalizer::{
     ConfirmationDepth, FinalizedEvent, Finalizer, FinalizerBuilder, FinalizerError, Strategy,
 };
 pub use indexer::{current_block_number, StemIndexer};
-pub use membrane::{membrane_client, Epoch, MembraneServer};
+pub use membrane::{
+    membrane_client, Epoch, EpochGuard, MembraneServer, NoExtension,
+    SessionExtensionBuilder, StatusPollerServer, fill_epoch_builder,
+};
 
 /// Current head state (alias for ABI CurrentHead).
 pub type Head = CurrentHead;

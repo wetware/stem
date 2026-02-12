@@ -41,9 +41,10 @@ fn finalized_to_epoch(e: &FinalizedEvent) -> Epoch {
 /// Stub Signer for graft: returns empty signature (example only).
 struct StubSigner;
 
+#[allow(refining_impl_trait)]
 impl stem_capnp::signer::Server for StubSigner {
     fn sign(
-        &mut self,
+        self: capnp::capability::Rc<Self>,
         _: stem_capnp::signer::SignParams,
         mut results: stem_capnp::signer::SignResults,
     ) -> capnp::capability::Promise<(), capnp::Error> {
@@ -137,7 +138,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         });
 
         let mut epoch_tx: Option<watch::Sender<Epoch>> = None;
-        let mut membrane: Option<stem_capnp::membrane::Client> = None;
+        let mut membrane: Option<stem_capnp::membrane::Client<capnp::any_pointer::Owned>> = None;
         let mut poller: Option<stem_capnp::status_poller::Client> = None;
         let mut first_issued_seq: Option<u64> = None;
         let mut last_adopted_seq: Option<u64> = None;
