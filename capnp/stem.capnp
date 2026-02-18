@@ -1,8 +1,8 @@
 @0x9bce094a026970c4;
 
 struct Epoch {
-  seq @0 :UInt64;        # Monotonic epoch sequence number (from Stem.seq).
-  head @1 :Data;         # Opaque head bytes from the Stem contract.
+  seq @0 :UInt64;        # Monotonic epoch sequence number (from Atom.seq).
+  head @1 :Data;         # Opaque head bytes from the Atom contract.
   adoptedBlock @2 :UInt64;# Block number at which this epoch was adopted.
 }
 

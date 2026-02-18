@@ -82,9 +82,9 @@ pub async fn eth_get_transaction_count(http_url: &str, address: &str) -> Result<
     u64::from_str_radix(s, 16).context("parse nonce")
 }
 
-/// Call Stem.head() via eth_call and decode. For optional post-revert assertion (e.g. seq == 0).
-pub async fn stem_head_http(http_url: &str, contract_address: &[u8; 20]) -> Result<stem::CurrentHead> {
-    use stem::abi::{decode_head_return, HEAD_SELECTOR};
+/// Call Atom.head() via eth_call and decode. For optional post-revert assertion (e.g. seq == 0).
+pub async fn atom_head_http(http_url: &str, contract_address: &[u8; 20]) -> Result<atom::CurrentHead> {
+    use atom::abi::{decode_head_return, HEAD_SELECTOR};
     let client = http_client();
     let params = json!([{
         "to": format!("0x{}", hex::encode(contract_address)),
@@ -145,9 +145,9 @@ async fn wait_for_rpc(url: &str) -> Result<()> {
     anyhow::bail!("RPC not ready");
 }
 
-/// Deploy Stem contract via forge script. Run from repo root (where src/Stem.sol lives).
+/// Deploy Atom contract via forge script. Run from repo root (where src/Atom.sol lives).
 /// Parses the deployed address from the broadcast artifact (works across Foundry versions).
-pub fn deploy_stem(repo_root: &std::path::Path, rpc_url: &str) -> Result<String> {
+pub fn deploy_atom(repo_root: &std::path::Path, rpc_url: &str) -> Result<String> {
     let out = Command::new("forge")
         .current_dir(repo_root)
         .args([
@@ -187,7 +187,7 @@ pub fn deploy_stem(repo_root: &std::path::Path, rpc_url: &str) -> Result<String>
     anyhow::bail!("no CREATE transaction in broadcast artifact");
 }
 
-/// Call setHead via cast send. Matches deployed Stem.sol ABI.
+/// Call setHead via cast send. Matches deployed Atom.sol ABI.
 /// - signature "setHead(bytes)": args = [cid_hex]; cid_kind ignored.
 /// - signature "setHead(uint8,bytes)": args = [cid_kind, cid_hex]; cid_kind required.
 ///   Prefer set_head_bytes when you have raw bytes so encoding is unambiguous.
@@ -206,7 +206,7 @@ pub fn set_head(
 /// Anvil default account 0 (used for eth_sendTransaction when node signs).
 const ANVIL_DEFAULT_FROM: &str = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266";
 
-/// First 4 bytes of keccak256("setHead(bytes)"). Matches [Stem.sol](src/Stem.sol) setHead(bytes calldata newCid).
+/// First 4 bytes of keccak256("setHead(bytes)"). Matches [Atom.sol](src/Atom.sol) setHead(bytes calldata newCid).
 const SET_HEAD_BYTES_SELECTOR: [u8; 4] = [0x43, 0xea, 0xe8, 0x23];
 
 /// Build ABI-encoded calldata for setHead(bytes)(cid_bytes) per Solidity ABI spec (dynamic type: offset then enc(k) pad_right(X)).

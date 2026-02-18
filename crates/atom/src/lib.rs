@@ -1,10 +1,10 @@
-//! Off-chain Stem runtime: head-following, indexing, and finalization for the Stem contract.
+//! Off-chain Atom runtime: head-following, indexing, and finalization for the Atom contract.
 //!
-//! - **StemIndexer**: observed-only indexing of HeadUpdated events (WebSocket + HTTP backfill;
+//! - **AtomIndexer**: observed-only indexing of HeadUpdated events (WebSocket + HTTP backfill;
 //!   no reorg safety or confirmations in the indexer itself).
 //! - **Finalizer**: consumes indexer output and emits only events that are eligible per a
 //!   configurable [Strategy] (e.g. [ConfirmationDepth]) and pass the canonical cross-check
-//!   (`Stem.head()`), giving reorg-safe finalized output.
+//!   (`Atom.head()`), giving reorg-safe finalized output.
 
 #[allow(unused_parens)] // generated capnp code
 pub mod stem_capnp {
@@ -24,7 +24,7 @@ pub use cursor::Cursor;
 pub use finalizer::{
     ConfirmationDepth, FinalizedEvent, Finalizer, FinalizerBuilder, FinalizerError, Strategy,
 };
-pub use indexer::{current_block_number, StemIndexer};
+pub use indexer::{current_block_number, AtomIndexer};
 pub use membrane::{
     membrane_client, Epoch, EpochGuard, MembraneServer, NoExtension,
     SessionExtensionBuilder, StatusPollerServer, fill_epoch_builder,

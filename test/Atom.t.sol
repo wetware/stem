@@ -2,23 +2,23 @@
 pragma solidity ^0.8.24;
 
 import { Test } from "forge-std/Test.sol";
-import { Stem } from "../src/Stem.sol";
+import { Atom } from "../src/Atom.sol";
 
-contract StemTest is Test {
-    Stem public stem;
+contract AtomTest is Test {
+    Atom public atom;
     address public owner;
     address public user;
 
     function setUp() public {
         owner = address(this);
         user = address(0x123);
-        stem = new Stem(bytes("ipfs-initial"));
+        atom = new Atom(bytes("ipfs-initial"));
     }
 
     function test_Constructor() public view {
-        assertEq(stem.owner(), owner);
-        assertEq(stem.seq(), 0);
-        (uint64 s, bytes memory c) = stem.head();
+        assertEq(atom.owner(), owner);
+        assertEq(atom.seq(), 0);
+        (uint64 s, bytes memory c) = atom.head();
         assertEq(s, 0);
         assertEq(keccak256(c), keccak256(bytes("ipfs-initial")));
     }
@@ -27,47 +27,47 @@ contract StemTest is Test {
         bytes memory newCid = bytes("ipfs://new");
         bytes32 expectedCidHash = keccak256(newCid);
         vm.expectEmit(true, true, true, true);
-        emit Stem.HeadUpdated(1, owner, newCid, expectedCidHash);
+        emit Atom.HeadUpdated(1, owner, newCid, expectedCidHash);
 
-        stem.setHead(newCid);
+        atom.setHead(newCid);
 
-        assertEq(stem.seq(), 1);
-        (uint64 seq, bytes memory cid) = stem.head();
+        assertEq(atom.seq(), 1);
+        (uint64 seq, bytes memory cid) = atom.head();
         assertEq(seq, 1);
         assertEq(cid, newCid);
     }
 
     function test_SetHead_NotOwner() public {
         vm.prank(user);
-        vm.expectRevert(Stem.NotOwner.selector);
-        stem.setHead(bytes("ipfs://new"));
+        vm.expectRevert(Atom.NotOwner.selector);
+        atom.setHead(bytes("ipfs://new"));
     }
 
     function test_SetHead_NoChange() public {
         // Same cid as initial head -> revert NoChange, seq unchanged
-        vm.expectRevert(Stem.NoChange.selector);
-        stem.setHead(bytes("ipfs-initial"));
-        assertEq(stem.seq(), 0);
+        vm.expectRevert(Atom.NoChange.selector);
+        atom.setHead(bytes("ipfs-initial"));
+        assertEq(atom.seq(), 0);
 
         // One real update, then no-op again -> revert NoChange, seq still 1
-        stem.setHead(bytes("ipfs://new"));
-        assertEq(stem.seq(), 1);
-        vm.expectRevert(Stem.NoChange.selector);
-        stem.setHead(bytes("ipfs://new"));
-        assertEq(stem.seq(), 1);
+        atom.setHead(bytes("ipfs://new"));
+        assertEq(atom.seq(), 1);
+        vm.expectRevert(Atom.NoChange.selector);
+        atom.setHead(bytes("ipfs://new"));
+        assertEq(atom.seq(), 1);
     }
 
     function test_SetHead_MultipleUpdates() public {
-        stem.setHead(bytes("ipfs://first"));
-        assertEq(stem.seq(), 1);
+        atom.setHead(bytes("ipfs://first"));
+        assertEq(atom.seq(), 1);
 
-        stem.setHead(bytes("ipld://second"));
-        assertEq(stem.seq(), 2);
+        atom.setHead(bytes("ipld://second"));
+        assertEq(atom.seq(), 2);
 
-        stem.setHead(bytes("blob://third"));
-        assertEq(stem.seq(), 3);
+        atom.setHead(bytes("blob://third"));
+        assertEq(atom.seq(), 3);
 
-        (uint64 seq, bytes memory cid) = stem.head();
+        (uint64 seq, bytes memory cid) = atom.head();
         assertEq(seq, 3);
         assertEq(cid, bytes("blob://third"));
     }
@@ -76,12 +76,12 @@ contract StemTest is Test {
         bytes memory cid = bytes("QmIPFS");
         bytes32 cidHash = keccak256(cid);
         vm.expectEmit(true, true, true, true);
-        emit Stem.HeadUpdated(1, owner, cid, cidHash);
+        emit Atom.HeadUpdated(1, owner, cid, cidHash);
 
-        stem.setHead(cid);
+        atom.setHead(cid);
 
-        assertEq(stem.seq(), 1);
-        (uint64 seq, bytes memory c) = stem.head();
+        assertEq(atom.seq(), 1);
+        (uint64 seq, bytes memory c) = atom.head();
         assertEq(seq, 1);
         assertEq(c, cid);
     }
@@ -90,12 +90,12 @@ contract StemTest is Test {
         bytes memory cid = bytes("QmIPLD");
         bytes32 cidHash = keccak256(cid);
         vm.expectEmit(true, true, true, true);
-        emit Stem.HeadUpdated(1, owner, cid, cidHash);
+        emit Atom.HeadUpdated(1, owner, cid, cidHash);
 
-        stem.setHead(cid);
+        atom.setHead(cid);
 
-        assertEq(stem.seq(), 1);
-        (uint64 seq, bytes memory c) = stem.head();
+        assertEq(atom.seq(), 1);
+        (uint64 seq, bytes memory c) = atom.head();
         assertEq(seq, 1);
         assertEq(c, cid);
     }
@@ -104,12 +104,12 @@ contract StemTest is Test {
         bytes memory cid = bytes("blob-data");
         bytes32 cidHash = keccak256(cid);
         vm.expectEmit(true, true, true, true);
-        emit Stem.HeadUpdated(1, owner, cid, cidHash);
+        emit Atom.HeadUpdated(1, owner, cid, cidHash);
 
-        stem.setHead(cid);
+        atom.setHead(cid);
 
-        assertEq(stem.seq(), 1);
-        (uint64 seq, bytes memory c) = stem.head();
+        assertEq(atom.seq(), 1);
+        (uint64 seq, bytes memory c) = atom.head();
         assertEq(seq, 1);
         assertEq(c, cid);
     }
@@ -118,12 +118,12 @@ contract StemTest is Test {
         bytes memory cid = bytes("k51qzi5uqu5...");
         bytes32 cidHash = keccak256(cid);
         vm.expectEmit(true, true, true, true);
-        emit Stem.HeadUpdated(1, owner, cid, cidHash);
+        emit Atom.HeadUpdated(1, owner, cid, cidHash);
 
-        stem.setHead(cid);
+        atom.setHead(cid);
 
-        assertEq(stem.seq(), 1);
-        (uint64 seq, bytes memory c) = stem.head();
+        assertEq(atom.seq(), 1);
+        (uint64 seq, bytes memory c) = atom.head();
         assertEq(seq, 1);
         assertEq(c, cid);
     }

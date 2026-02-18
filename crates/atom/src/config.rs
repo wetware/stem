@@ -7,7 +7,7 @@ pub struct IndexerConfig {
     pub ws_url: String,
     /// HTTP RPC URL for backfill (eth_getLogs, eth_blockNumber, eth_call).
     pub http_url: String,
-    /// Stem contract address (20 bytes).
+    /// Atom contract address (20 bytes).
     pub contract_address: [u8; 20],
     /// First block to backfill from on startup.
     pub start_block: u64,

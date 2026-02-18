@@ -5,13 +5,13 @@
 //!
 //! Usage:
 //!
-//!   cargo run -p stem --example finalizer -- --ws-url <WS_URL> --http-url <HTTP_URL> --contract <STEM_ADDRESS>
+//!   cargo run -p atom --example finalizer -- --ws-url <WS_URL> --http-url <HTTP_URL> --contract <ATOM_ADDRESS>
 //!
 //! Options:
 //!   --depth <K>   Confirmation depth (number of blocks after event before considering finalized). Default: 6.
 //!   --cursor <path>  Path to file containing start block (one line, decimal). If missing or invalid, start from 0.
 
-use stem::{FinalizerBuilder, IndexerConfig, StemIndexer};
+use atom::{FinalizerBuilder, IndexerConfig, AtomIndexer};
 use std::io::BufRead;
 use std::sync::Arc;
 
@@ -74,7 +74,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
             "--help" | "-h" => {
                 eprintln!(
-                    "Usage: finalizer --ws-url <WS_URL> --http-url <HTTP_URL> --contract <STEM_ADDRESS> [--depth K] [--cursor <path>]\n\
+                    "Usage: finalizer --ws-url <WS_URL> --http-url <HTTP_URL> --contract <ATOM_ADDRESS> [--depth K] [--cursor <path>]\n\
                      Prints one-line JSON per finalized HeadUpdated event (confirmation-depth strategy).\n\
                      --depth K  Confirmation depth (blocks after event before finalized). Default: 6.\n\
                      --cursor   Path to file with start block (one line, decimal). Optional.\n\
@@ -87,7 +87,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         i += 1;
     }
     if ws_url.is_empty() || http_url.is_empty() || contract.is_empty() {
-        eprintln!("Usage: finalizer --ws-url <WS_URL> --http-url <HTTP_URL> --contract <STEM_ADDRESS> [--depth K] [--cursor <path>]");
+        eprintln!("Usage: finalizer --ws-url <WS_URL> --http-url <HTTP_URL> --contract <ATOM_ADDRESS> [--depth K] [--cursor <path>]");
         std::process::exit(1);
     }
     let contract_address = match parse_contract_address(&contract) {
@@ -111,7 +111,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         getlogs_max_range: 1000,
         reconnection: Default::default(),
     };
-    let indexer = Arc::new(StemIndexer::new(config));
+    let indexer = Arc::new(AtomIndexer::new(config));
     let mut recv = indexer.subscribe();
     let indexer_clone = Arc::clone(&indexer);
     std::thread::spawn(move || {

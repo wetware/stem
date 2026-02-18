@@ -10,9 +10,9 @@
 mod common;
 
 use anyhow::{Context, Result};
-use common::{deploy_stem, evm_revert, evm_snapshot, set_head, spawn_anvil};
+use common::{deploy_atom, evm_revert, evm_snapshot, set_head, spawn_anvil};
 use serde_json::{json, Value};
-use stem::abi::{decode_head_return, decode_log_to_observed, CurrentHead, HEAD_SELECTOR, HEAD_UPDATED_TOPIC0};
+use atom::abi::{decode_head_return, decode_log_to_observed, CurrentHead, HEAD_SELECTOR, HEAD_UPDATED_TOPIC0};
 use std::path::Path;
 
 async fn http_json_rpc(client: &reqwest::Client, url: &str, method: &str, params: Value, id: u64) -> Result<Value> {
@@ -61,7 +61,7 @@ async fn eth_get_logs(
     Ok(logs)
 }
 
-async fn stem_head(
+async fn atom_head(
     client: &reqwest::Client,
     http_url: &str,
     contract_address: &[u8; 20],
@@ -88,7 +88,7 @@ async fn test_reorg_naive_observer_mismatch() {
 
     let repo_root = Path::new(env!("CARGO_MANIFEST_DIR")).ancestors().nth(2).unwrap();
     let (mut anvil_process, rpc_url) = spawn_anvil().await.expect("spawn anvil");
-    let contract_addr = deploy_stem(repo_root, &rpc_url).expect("deploy Stem");
+    let contract_addr = deploy_atom(repo_root, &rpc_url).expect("deploy Atom");
     let addr_bytes = hex::decode(contract_addr.strip_prefix("0x").unwrap_or(&contract_addr)).expect("hex");
     let mut contract_address = [0u8; 20];
     contract_address.copy_from_slice(&addr_bytes);
@@ -143,7 +143,7 @@ async fn test_reorg_naive_observer_mismatch() {
     });
     assert!(!has_our_tx, "canonical logs must not contain the reverted setHead tx");
 
-    let canonical_head = stem_head(&client, &rpc_url, &contract_address).await.expect("stem head()");
+    let canonical_head = atom_head(&client, &rpc_url, &contract_address).await.expect("atom head()");
     assert_eq!(canonical_head.seq, 0, "canonical chain must no longer reflect the reverted setHead");
     // After evm_revert, canonical head is back to initial state (seq 0); cid may be initial or empty depending on node.
 

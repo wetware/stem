@@ -1,4 +1,4 @@
-//! StemIndexer: observed-only indexing of Stem HeadUpdated events.
+//! AtomIndexer: observed-only indexing of Atom HeadUpdated events.
 //!
 //! Subscribes via WebSocket, backfills via HTTP on startup/reconnect, maintains
 //! in-memory cursor and current HEAD. No reorg safety or confirmations in the indexer
@@ -111,14 +111,14 @@ async fn eth_get_logs(
     Ok(arr.clone())
 }
 
-/// Stem indexer: follows HeadUpdated logs, backfills via HTTP, maintains current HEAD.
-pub struct StemIndexer {
+/// Atom indexer: follows HeadUpdated logs, backfills via HTTP, maintains current HEAD.
+pub struct AtomIndexer {
     config: IndexerConfig,
     event_tx: broadcast::Sender<HeadUpdatedObserved>,
     current_head: Arc<RwLock<Option<CurrentHead>>>,
 }
 
-impl StemIndexer {
+impl AtomIndexer {
     pub fn new(config: IndexerConfig) -> Self {
         let (event_tx, _) = broadcast::channel(256);
         Self {
@@ -159,7 +159,7 @@ impl StemIndexer {
                     sleep(Duration::from_secs(reconnection.initial_backoff_secs)).await;
                 }
                 Err(e) => {
-                    tracing::warn!(reason = %e, "StemIndexer failed, reconnecting...");
+                    tracing::warn!(reason = %e, "AtomIndexer failed, reconnecting...");
                     let base = std::cmp::min(
                         Duration::from_secs(reconnection.initial_backoff_secs) * 2,
                         Duration::from_secs(reconnection.max_backoff_secs),
@@ -173,7 +173,7 @@ impl StemIndexer {
 }
 
 async fn run_once(
-    indexer: Arc<StemIndexer>,
+    indexer: Arc<AtomIndexer>,
     http_client: &reqwest::Client,
     cursor: &mut Cursor,
     config: &IndexerConfig,

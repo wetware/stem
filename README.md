@@ -1,6 +1,6 @@
 # Stem
 
-Off-chain runtime for the [Stem smart contract](src/Stem.sol).
+Off-chain runtime for the [Atom smart contract](src/Atom.sol).
 
 Stem indexes `HeadUpdated` events emitted by an on-chain anchor contract,
 finalizes them with reorg safety (configurable confirmation depth), and exposes
@@ -24,7 +24,7 @@ HeadUpdated → Indexer → Finalizer → Epoch → Membrane
 
 The runtime is a four-stage pipeline:
 
-### 1. Stem contract (`src/Stem.sol`)
+### 1. Atom contract (`src/Atom.sol`)
 
 On-chain anchor. The owner calls `setHead(newCid)` to advance a monotonic
 `seq` and emit a `HeadUpdated` event. The `head()` view returns the canonical
@@ -39,7 +39,7 @@ event HeadUpdated(
 );
 ```
 
-### 2. Indexer (`StemIndexer`)
+### 2. Indexer (`AtomIndexer`)
 
 Subscribes to `HeadUpdated` via WebSocket for live events and backfills
 missed blocks via HTTP `eth_getLogs` on startup and reconnect. Broadcasts
@@ -57,7 +57,7 @@ Consumes observed events from the indexer and outputs only those that are
 - **Eligibility** is decided by a pluggable `Strategy` trait. The built-in
   `ConfirmationDepth(K)` strategy requires `tip >= event.block_number + K`.
 - **Canonical cross-check**: after eligibility, the finalizer calls
-  `Stem.head()` and only emits if the on-chain `(seq, cid)` matches the
+  `Atom.head()` and only emits if the on-chain `(seq, cid)` matches the
   candidate event.
 - **Deduplication** by `(tx_hash, log_index)` ensures exactly-once delivery
   across reconnects and backfills.
@@ -91,14 +91,14 @@ call `graft()` again to obtain a fresh session under the new epoch.
 
 ```bash
 forge build
-cargo build -p stem
+cargo build -p atom
 ```
 
 ### Test
 
 ```bash
 forge test
-cargo test -p stem
+cargo test -p atom
 ```
 
 ## Deploy (local)
@@ -119,24 +119,24 @@ forge script script/Deploy.s.sol \
   --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
 
 # Note the deployed address from the output, then set the first head:
-cast send <STEM_ADDRESS> "setHead(bytes)" "0x$(echo -n 'ipfs://first' | xxd -p)" \
+cast send <ATOM_ADDRESS> "setHead(bytes)" "0x$(echo -n 'ipfs://first' | xxd -p)" \
   --rpc-url http://127.0.0.1:8545 \
   --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
 ```
 
 ## Examples
 
-All examples live in `crates/stem/examples/` and connect to a running node
-with a deployed Stem contract.
+All examples live in `crates/atom/examples/` and connect to a running node
+with a deployed Atom contract.
 
-### `stem_indexer` — raw observed events
+### `atom_indexer` — raw observed events
 
 Prints every `HeadUpdated` event as it arrives (no finalization).
 
 ```bash
-cargo run -p stem --example stem_indexer -- \
+cargo run -p atom --example atom_indexer -- \
   --rpc-url http://127.0.0.1:8545 \
-  --contract <STEM_ADDRESS>
+  --contract <ATOM_ADDRESS>
 ```
 
 ### `finalizer` — finalized events as JSON
@@ -145,10 +145,10 @@ Runs the full indexer + finalizer pipeline and prints one JSON object per
 finalized event.
 
 ```bash
-cargo run -p stem --example finalizer -- \
+cargo run -p atom --example finalizer -- \
   --ws-url ws://127.0.0.1:8545 \
   --http-url http://127.0.0.1:8545 \
-  --contract <STEM_ADDRESS> \
+  --contract <ATOM_ADDRESS> \
   --depth 2
 ```
 
@@ -160,10 +160,10 @@ fails with a `staleEpoch` error; the example re-grafts and polls successfully
 under the new epoch.
 
 ```bash
-cargo run -p stem --example membrane_poll -- \
+cargo run -p atom --example membrane_poll -- \
   --ws-url ws://127.0.0.1:8545 \
   --http-url http://127.0.0.1:8545 \
-  --contract <STEM_ADDRESS> \
+  --contract <ATOM_ADDRESS> \
   --depth 2
 ```
 

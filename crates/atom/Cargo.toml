@@ -1,8 +1,8 @@
 [package]
-name = "stem"
+name = "atom"
 version = "0.1.0"
 edition = "2021"
-description = "Off-chain Stem runtime: head-following, finalization, and caching for the Stem contract"
+description = "Off-chain Atom runtime: head-following, finalization, and caching for the Atom contract"
 
 
 [build-dependencies]
@@ -32,8 +32,8 @@ rlp = "0.5"
 tokio-test = "0.4"
 
 [[example]]
-name = "stem_indexer"
-path = "examples/stem_indexer.rs"
+name = "atom_indexer"
+path = "examples/atom_indexer.rs"
 
 [[example]]
 name = "finalizer"

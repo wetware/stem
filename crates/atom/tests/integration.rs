@@ -1,9 +1,9 @@
-//! Integration test: Anvil + deploy Stem + setHead + StemIndexer.
+//! Integration test: Anvil + deploy Atom + setHead + AtomIndexer.
 
 mod common;
 
-use common::{deploy_stem, set_head, spawn_anvil};
-use stem::{IndexerConfig, StemIndexer};
+use common::{deploy_atom, set_head, spawn_anvil};
+use atom::{IndexerConfig, AtomIndexer};
 use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
@@ -17,13 +17,13 @@ async fn test_indexer_against_anvil() {
         return;
     }
     let _ = tracing_subscriber::fmt()
-        .with_env_filter(EnvFilter::from_default_env().add_directive("stem=debug".parse().unwrap()))
+        .with_env_filter(EnvFilter::from_default_env().add_directive("atom=debug".parse().unwrap()))
         .with_test_writer()
         .try_init();
 
     let repo_root = Path::new(env!("CARGO_MANIFEST_DIR")).ancestors().nth(2).unwrap();
     let (mut anvil_process, rpc_url) = spawn_anvil().await.expect("spawn anvil");
-    let contract_addr = deploy_stem(repo_root, &rpc_url).expect("deploy Stem");
+    let contract_addr = deploy_atom(repo_root, &rpc_url).expect("deploy Atom");
     let addr_bytes = hex::decode(contract_addr.strip_prefix("0x").unwrap_or(&contract_addr)).expect("hex");
     let mut contract_address = [0u8; 20];
     contract_address.copy_from_slice(&addr_bytes);
@@ -41,7 +41,7 @@ async fn test_indexer_against_anvil() {
         getlogs_max_range: 1000,
         reconnection: Default::default(),
     };
-    let indexer = Arc::new(StemIndexer::new(config));
+    let indexer = Arc::new(AtomIndexer::new(config));
     let mut recv = indexer.subscribe();
     let indexer_clone = Arc::clone(&indexer);
     let task = tokio::spawn(async move {
