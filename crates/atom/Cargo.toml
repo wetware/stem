@@ -5,10 +5,8 @@ edition = "2021"
 description = "Off-chain Atom runtime: head-following, finalization, and caching for the Atom contract"
 
 
-[build-dependencies]
-capnpc = "0.23.3"
-
 [dependencies]
+membrane-core = { git = "https://github.com/wetware/membrane.git" }
 alloy = { version = "0.4", features = ["rpc-types", "sol-types"] }
 capnp = "0.23.2"
 anyhow = "1"
