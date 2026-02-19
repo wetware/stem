@@ -6,8 +6,8 @@
 //!   configurable [Strategy] (e.g. [ConfirmationDepth]) and pass the canonical cross-check
 //!   (`Atom.head()`), giving reorg-safe finalized output.
 
-pub use membrane_core::stem_capnp;
-pub use membrane_core::{
+pub use membrane::stem_capnp;
+pub use membrane::{
     Epoch, EpochGuard, fill_epoch_builder,
     membrane_client, MembraneServer, NoExtension,
     SessionExtensionBuilder, StatusPollerServer,

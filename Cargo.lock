@@ -713,7 +713,7 @@ dependencies = [
  "futures-util",
  "hex",
  "k256",
- "membrane-core",
+ "membrane",
  "rand 0.8.5",
  "reqwest",
  "rlp",
@@ -1977,9 +1977,9 @@ dependencies = [
 ]
 
 [[package]]
-name = "membrane-core"
+name = "membrane"
 version = "0.1.0"
-source = "git+https://github.com/wetware/membrane.git#cfd88022ccb59f4cff49a91501807af430d3dcc5"
+source = "git+https://github.com/wetware/rs.git?branch=feat%2Fmembrane-crate#ce1030034cde7f87ffe2a4ee5d6c47341f08b035"
 dependencies = [
  "capnp",
  "capnp-rpc",

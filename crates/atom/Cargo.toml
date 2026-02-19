@@ -6,7 +6,7 @@ description = "Off-chain Atom runtime: head-following, finalization, and caching
 
 
 [dependencies]
-membrane-core = { git = "https://github.com/wetware/membrane.git" }
+membrane = { git = "https://github.com/wetware/rs.git", branch = "feat/membrane-crate" }
 alloy = { version = "0.4", features = ["rpc-types", "sol-types"] }
 capnp = "0.23.2"
 anyhow = "1"
