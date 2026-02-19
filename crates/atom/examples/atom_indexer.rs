@@ -1,22 +1,22 @@
-//! Example: connect to an RPC endpoint and log Stem head updates.
+//! Example: connect to an RPC endpoint and log Atom head updates.
 //!
-//! Imports the stem lib, runs StemIndexer against a Stem contract, and prints each
+//! Imports the atom lib, runs AtomIndexer against an Atom contract, and prints each
 //! HeadUpdated event (seq, block, writer, cid length). WebSocket URL is derived from
 //! the HTTP RPC URL (http -> ws, https -> wss).
 //!
 //! Usage:
 //!
-//!   cargo run -p stem --example stem_indexer -- --rpc-url <HTTP_URL> --contract <STEM_ADDRESS>
+//!   cargo run -p atom --example atom_indexer -- --rpc-url <HTTP_URL> --contract <ATOM_ADDRESS>
 //!
-//! Getting the contract address: deploy Stem with Foundry, then use the printed address:
+//! Getting the contract address: deploy Atom with Foundry, then use the printed address:
 //!
 //!   anvil
 //!   forge script script/Deploy.s.sol --rpc-url http://127.0.0.1:8545 --broadcast --private-key 0xac0974...
-//!   # "Stem deployed at: 0x..." is the address to pass as --contract
+//!   # "Atom deployed at: 0x..." is the address to pass as --contract
 //!
-//!   cargo run -p stem --example stem_indexer -- --rpc-url http://127.0.0.1:8545 --contract 0x...
+//!   cargo run -p atom --example atom_indexer -- --rpc-url http://127.0.0.1:8545 --contract 0x...
 
-use stem::{IndexerConfig, StemIndexer};
+use atom::{IndexerConfig, AtomIndexer};
 use std::sync::Arc;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -37,8 +37,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
             "--help" | "-h" => {
                 eprintln!(
-                    "Usage: stem_indexer --rpc-url <HTTP_URL> --contract <STEM_ADDRESS>\n\
-                     Logs HeadUpdated events from the Stem contract. WS URL is derived from RPC URL."
+                    "Usage: atom_indexer --rpc-url <HTTP_URL> --contract <ATOM_ADDRESS>\n\
+                     Logs HeadUpdated events from the Atom contract. WS URL is derived from RPC URL."
                 );
                 std::process::exit(0);
             }
@@ -47,7 +47,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         i += 1;
     }
     if rpc_url.is_empty() || contract.is_empty() {
-        eprintln!("Usage: stem_indexer --rpc-url <HTTP_URL> --contract <STEM_ADDRESS>");
+        eprintln!("Usage: atom_indexer --rpc-url <HTTP_URL> --contract <ATOM_ADDRESS>");
         eprintln!("       (WebSocket URL is derived from the RPC URL)");
         std::process::exit(1);
     }
@@ -73,7 +73,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         getlogs_max_range: 1000,
         reconnection: Default::default(),
     };
-    let indexer = Arc::new(StemIndexer::new(config));
+    let indexer = Arc::new(AtomIndexer::new(config));
     let mut recv = indexer.subscribe();
     let indexer_clone = Arc::clone(&indexer);
     std::thread::spawn(move || {

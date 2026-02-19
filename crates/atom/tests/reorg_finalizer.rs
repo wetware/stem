@@ -3,10 +3,10 @@
 mod common;
 
 use common::{
-    deploy_stem, eth_block_number, evm_mine, evm_revert, evm_snapshot, set_head_bytes, spawn_anvil,
-    stem_head_http,
+    deploy_atom, eth_block_number, evm_mine, evm_revert, evm_snapshot, set_head_bytes, spawn_anvil,
+    atom_head_http,
 };
-use stem::{FinalizerBuilder, IndexerConfig, StemIndexer};
+use atom::{FinalizerBuilder, IndexerConfig, AtomIndexer};
 use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
@@ -37,14 +37,14 @@ async fn test_reorg_indexer_false_positive_finalizer_filters() {
         return;
     }
     let _ = tracing_subscriber::fmt()
-        .with_env_filter(EnvFilter::from_default_env().add_directive("stem=debug".parse().unwrap()))
+        .with_env_filter(EnvFilter::from_default_env().add_directive("atom=debug".parse().unwrap()))
         .with_test_writer()
         .try_init();
 
-    // CARGO_MANIFEST_DIR is crates/stem, so ancestors().nth(2) is repo root (script/, broadcast/).
+    // CARGO_MANIFEST_DIR is crates/atom, so ancestors().nth(2) is repo root (script/, broadcast/).
     let repo_root = Path::new(env!("CARGO_MANIFEST_DIR")).ancestors().nth(2).unwrap();
     let (anvil_process, rpc_url) = spawn_anvil().await.expect("spawn anvil");
-    let contract_addr = deploy_stem(repo_root, &rpc_url).expect("deploy Stem");
+    let contract_addr = deploy_atom(repo_root, &rpc_url).expect("deploy Atom");
     let addr_bytes = hex::decode(contract_addr.strip_prefix("0x").unwrap_or(&contract_addr)).expect("hex");
     let mut contract_address = [0u8; 20];
     contract_address.copy_from_slice(&addr_bytes);
@@ -59,7 +59,7 @@ async fn test_reorg_indexer_false_positive_finalizer_filters() {
         getlogs_max_range: 1000,
         reconnection: Default::default(),
     };
-    let indexer = Arc::new(StemIndexer::new(config));
+    let indexer = Arc::new(AtomIndexer::new(config));
     let mut recv = indexer.subscribe();
     let indexer_clone = Arc::clone(&indexer);
     let indexer_task = tokio::spawn(async move {
@@ -123,6 +123,6 @@ async fn test_reorg_indexer_false_positive_finalizer_filters() {
         finalized.len()
     );
 
-    let head = stem_head_http(&rpc_url, &contract_address).await.expect("stem head()");
+    let head = atom_head_http(&rpc_url, &contract_address).await.expect("stem head()");
     assert_eq!(head.seq, 0, "canonical head must be seq 0 after revert");
 }

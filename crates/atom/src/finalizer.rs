@@ -1,7 +1,7 @@
 //! Finalizer: reorg-safe finalization of observed HeadUpdated events.
 //!
 //! Consumes observed [HeadUpdatedObserved] from the indexer and outputs only events that are
-//! eligible per the configured [Strategy] and pass the canonical cross-check (`Stem.head()`).
+//! eligible per the configured [Strategy] and pass the canonical cross-check (`Atom.head()`).
 //! Dedup key is `(tx_hash, log_index)` (globally unique per log; stable across reconnects/backfill).
 //! Configure via [Strategy]; use [ConfirmationDepth] for depth-K finalization. See the
 //! `finalizer` example for a full pipeline (indexer → finalizer → JSON output).
@@ -217,7 +217,7 @@ impl Finalizer {
     }
 
     /// Drain events that are eligible per strategy and pass the canonical cross-check.
-    /// Eligibility is checked with `strategy.is_eligible(ev, tip)`; then we call `Stem.head()`
+    /// Eligibility is checked with `strategy.is_eligible(ev, tip)`; then we call `Atom.head()`
     /// and only emit if (seq, cid) matches the candidate. Dedup by (tx_hash, log_index).
     pub async fn drain_eligible(&mut self, tip: u64) -> Result<Vec<FinalizedEvent>, FinalizerError> {
         // Collect eligible in order (block_number, log_index), then remove them from pending.

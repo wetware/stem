@@ -1,14 +1,12 @@
 [package]
-name = "stem"
+name = "atom"
 version = "0.1.0"
 edition = "2021"
-description = "Off-chain Stem runtime: head-following, finalization, and caching for the Stem contract"
+description = "Off-chain Atom runtime: head-following, finalization, and caching for the Atom contract"
 
-
-[build-dependencies]
-capnpc = "0.23.3"
 
 [dependencies]
+membrane = { git = "https://github.com/wetware/rs.git", branch = "feat/membrane-crate" }
 alloy = { version = "0.4", features = ["rpc-types", "sol-types"] }
 capnp = "0.23.2"
 anyhow = "1"
@@ -32,8 +30,8 @@ rlp = "0.5"
 tokio-test = "0.4"
 
 [[example]]
-name = "stem_indexer"
-path = "examples/stem_indexer.rs"
+name = "atom_indexer"
+path = "examples/atom_indexer.rs"
 
 [[example]]
 name = "finalizer"

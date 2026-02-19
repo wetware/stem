@@ -1,4 +1,4 @@
-//! ABI types and decoding for the Stem contract.
+//! ABI types and decoding for the Atom contract.
 //!
 //! HeadUpdated event and head() view. Decode from JSON-RPC log shape and eth_call return.
 //! Uses alloy sol-types for ABI decoding; head() returns (uint64, bytes), event HeadUpdated(seq, writer, cid, cidHash).

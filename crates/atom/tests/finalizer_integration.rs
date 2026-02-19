@@ -2,8 +2,8 @@
 
 mod common;
 
-use common::{deploy_stem, eth_block_number, evm_mine, set_head_bytes, spawn_anvil, stem_head_http};
-use stem::{FinalizerBuilder, IndexerConfig, StemIndexer};
+use common::{deploy_atom, eth_block_number, evm_mine, set_head_bytes, spawn_anvil, atom_head_http};
+use atom::{FinalizerBuilder, IndexerConfig, AtomIndexer};
 use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
@@ -34,20 +34,20 @@ async fn test_finalizer_confirmation_depth_gates_and_adopts() {
         return;
     }
     let _ = tracing_subscriber::fmt()
-        .with_env_filter(EnvFilter::from_default_env().add_directive("stem=debug".parse().unwrap()))
+        .with_env_filter(EnvFilter::from_default_env().add_directive("atom=debug".parse().unwrap()))
         .with_test_writer()
         .try_init();
 
-    // CARGO_MANIFEST_DIR is crates/stem, so ancestors().nth(2) is repo root (script/, broadcast/).
+    // CARGO_MANIFEST_DIR is crates/atom, so ancestors().nth(2) is repo root (script/, broadcast/).
     let repo_root = Path::new(env!("CARGO_MANIFEST_DIR")).ancestors().nth(2).unwrap();
     let (anvil_process, rpc_url) = spawn_anvil().await.expect("spawn anvil");
-    let contract_addr = deploy_stem(repo_root, &rpc_url).expect("deploy Stem");
+    let contract_addr = deploy_atom(repo_root, &rpc_url).expect("deploy Atom");
     let addr_bytes = hex::decode(contract_addr.strip_prefix("0x").unwrap_or(&contract_addr)).expect("hex");
     let mut contract_address = [0u8; 20];
     contract_address.copy_from_slice(&addr_bytes);
 
     // Sanity: head() right after deploy should be seq=0, cid=b"ipfs-initial"
-    let head_after_deploy = stem_head_http(&rpc_url, &contract_address).await.expect("head after deploy");
+    let head_after_deploy = atom_head_http(&rpc_url, &contract_address).await.expect("head after deploy");
     assert_eq!(head_after_deploy.seq, 0, "seq after deploy");
     assert_eq!(
         head_after_deploy.cid.as_slice(),
@@ -66,7 +66,7 @@ async fn test_finalizer_confirmation_depth_gates_and_adopts() {
         getlogs_max_range: 1000,
         reconnection: Default::default(),
     };
-    let indexer = Arc::new(StemIndexer::new(config));
+    let indexer = Arc::new(AtomIndexer::new(config));
     let mut recv = indexer.subscribe();
     let indexer_clone = Arc::clone(&indexer);
     let indexer_task = tokio::spawn(async move {
@@ -80,7 +80,7 @@ async fn test_finalizer_confirmation_depth_gates_and_adopts() {
     // setHead("cid-1") — raw bytes + eth_sendRawTransaction (in-process EIP-155 signing).
     const CID_1_BYTES: &[u8] = b"cid-1";
     set_head_bytes(repo_root, &rpc_url, &contract_addr, "setHead(bytes)", CID_1_BYTES, None).await.expect("setHead");
-    let head_after_set = stem_head_http(&rpc_url, &contract_address).await.expect("stem head after setHead");
+    let head_after_set = atom_head_http(&rpc_url, &contract_address).await.expect("stem head after setHead");
     assert_eq!(head_after_set.seq, 1, "contract head().seq after setHead");
     assert_eq!(head_after_set.cid.as_slice(), CID_1_BYTES, "contract head().cid after setHead (got {:?})", head_after_set.cid);
 

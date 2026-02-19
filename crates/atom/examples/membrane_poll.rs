@@ -7,15 +7,15 @@
 //!
 //! Usage:
 //!
-//!   cargo run -p stem --example membrane_poll -- --ws-url <WS_URL> --http-url <HTTP_URL> --contract <STEM_ADDRESS>
+//!   cargo run -p atom --example membrane_poll -- --ws-url <WS_URL> --http-url <HTTP_URL> --contract <ATOM_ADDRESS>
 //!
 //! Options:
 //!   --depth <K>   Confirmation depth (blocks after event before finalized). Default: 2.
 
 use capnp_rpc::new_client;
-use stem::stem_capnp;
-use stem::{current_block_number, FinalizerBuilder, IndexerConfig, StemIndexer, Epoch};
-use stem::{FinalizedEvent, membrane_client};
+use atom::stem_capnp;
+use atom::{current_block_number, FinalizerBuilder, IndexerConfig, AtomIndexer, Epoch};
+use atom::{FinalizedEvent, membrane_client};
 use std::sync::Arc;
 use tokio::sync::watch;
 
@@ -83,7 +83,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
             "--help" | "-h" => {
                 eprintln!(
-                    "Usage: membrane_poll --ws-url <WS_URL> --http-url <HTTP_URL> --contract <STEM_ADDRESS> [--depth K]\n\
+                    "Usage: membrane_poll --ws-url <WS_URL> --http-url <HTTP_URL> --contract <ATOM_ADDRESS> [--depth K]\n\
                      Runs indexer → finalizer → membrane → graft → pollStatus (live-only from current block). Use small --depth (1–2) on a dev chain.\n\
                      After first epoch, run the printed cast send in another terminal to trigger staleness + re-graft."
                 );
@@ -94,7 +94,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         i += 1;
     }
     if ws_url.is_empty() || http_url.is_empty() || contract.is_empty() {
-        eprintln!("Usage: membrane_poll --ws-url <WS_URL> --http-url <HTTP_URL> --contract <STEM_ADDRESS> [--depth K]");
+        eprintln!("Usage: membrane_poll --ws-url <WS_URL> --http-url <HTTP_URL> --contract <ATOM_ADDRESS> [--depth K]");
         std::process::exit(1);
     }
     let contract_address = match parse_contract_address(&contract) {
@@ -127,7 +127,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             getlogs_max_range: 1000,
             reconnection: Default::default(),
         };
-        let indexer = Arc::new(StemIndexer::new(config));
+        let indexer = Arc::new(AtomIndexer::new(config));
         let mut recv = indexer.subscribe();
         let indexer_clone = Arc::clone(&indexer);
         std::thread::spawn(move || {

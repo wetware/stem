@@ -1,20 +1,20 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-/// @title Stem
-/// @notice The on-chain bootstrap facet of Stem.
+/// @title Atom
+/// @notice The on-chain bootstrap facet of Atom.
 ///
-/// Stem anchors the authoritative "head" pointer for Stem.
-/// Off-chain systems (Stem runtime) watch Stem events to learn when
+/// Atom anchors the authoritative "head" pointer for Atom.
+/// Off-chain systems (Atom runtime) watch Atom events to learn when
 /// the global configuration root has advanced.
 ///
 /// Semantics:
-/// - There is exactly one Stem per deployment.
+/// - There is exactly one Atom per deployment.
 /// - The head is advanced monotonically via `seq`.
 /// - Every advance emits an event suitable for deterministic replay.
 /// - Authority to advance the head is gated (owner for now).
-contract Stem {
-    /// @notice Emitted whenever the Stem head advances.
+contract Atom {
+    /// @notice Emitted whenever the Atom head advances.
     /// @param seq     Monotonic sequence number (epoch index)
     /// @param writer  Caller who advanced the head
     /// @param cid     New head pointer bytes (binary CID or name bytes)
@@ -50,7 +50,7 @@ contract Stem {
         return (seq, _cid);
     }
 
-    /// @notice Advance the Stem head.
+    /// @notice Advance the Atom head.
     /// Emits a HeadUpdated event that off-chain watchers consume.
     function setHead(bytes calldata newCid) external {
         if (msg.sender != owner) revert NotOwner();

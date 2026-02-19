@@ -703,6 +703,32 @@ dependencies = [
 ]
 
 [[package]]
+name = "atom"
+version = "0.1.0"
+dependencies = [
+ "alloy",
+ "anyhow",
+ "capnp",
+ "capnp-rpc",
+ "futures-util",
+ "hex",
+ "k256",
+ "membrane",
+ "rand 0.8.5",
+ "reqwest",
+ "rlp",
+ "serde",
+ "serde_json",
+ "sha3",
+ "thiserror",
+ "tokio",
+ "tokio-test",
+ "tokio-tungstenite",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "atomic-waker"
 version = "1.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1951,6 +1977,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "membrane"
+version = "0.1.0"
+source = "git+https://github.com/wetware/rs.git?branch=feat%2Fmembrane-crate#ce1030034cde7f87ffe2a4ee5d6c47341f08b035"
+dependencies = [
+ "capnp",
+ "capnp-rpc",
+ "capnpc",
+ "tokio",
+]
+
+[[package]]
 name = "memchr"
 version = "2.7.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2889,32 +2926,6 @@ name = "static_assertions"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
-
-[[package]]
-name = "stem"
-version = "0.1.0"
-dependencies = [
- "alloy",
- "anyhow",
- "capnp",
- "capnp-rpc",
- "capnpc",
- "futures-util",
- "hex",
- "k256",
- "rand 0.8.5",
- "reqwest",
- "rlp",
- "serde",
- "serde_json",
- "sha3",
- "thiserror",
- "tokio",
- "tokio-test",
- "tokio-tungstenite",
- "tracing",
- "tracing-subscriber",
-]
 
 [[package]]
 name = "strum"
